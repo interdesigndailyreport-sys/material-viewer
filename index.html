@@ -99,6 +99,7 @@
     align-items: center;
     gap: 3px;
     margin-right: 4px;
+    transition: opacity 0.2s;
   }
 
   .toast-notification {
@@ -470,7 +471,6 @@
   .action-btn-edit { color: var(--primary); cursor: pointer; background: none; border: none; font-size: 11px; font-weight: bold; text-decoration: underline; }
   .action-btn-del { color: #ef4444; cursor: pointer; background: none; border: none; font-size: 11px; text-decoration: underline; }
 
-  /* モーダル */
   .modal-overlay {
     position: fixed;
     top: 0; left: 0; width: 100%; height: 100%;
@@ -562,7 +562,6 @@
     margin-bottom: 3px;
   }
 
-  /* 過去物件アーカイブカード */
   .archive-project-card {
     border: 1px solid var(--border);
     border-radius: 6px;
@@ -750,7 +749,7 @@
   </div>
 </div>
 
-<!-- モーダル（材料ライブラリ・横断検索フィルター ＆ 個別削除） -->
+<!-- モーダル（材料ライブラリ・横断検索フィルター） -->
 <div class="modal-overlay" id="libraryModalOverlay">
   <div class="modal" style="width: 780px;">
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
@@ -786,7 +785,7 @@
   </div>
 </div>
 
-<!-- モーダル（過去物件のパース＆材料表アーカイブ ＆ 個別削除） -->
+<!-- モーダル（過去物件のパース＆材料表アーカイブ） -->
 <div class="modal-overlay" id="projectArchiveModalOverlay">
   <div class="modal" style="width: 840px;">
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
@@ -813,10 +812,142 @@
     return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}:${String(d.getSeconds()).padStart(2,'0')}`;
   };
 
-  const STORAGE_KEY_HISTORY = 'arch_material_history_lib_v2';
-  const STORAGE_KEY_DRAFT = 'arch_material_current_draft_v2';
-  const STORAGE_KEY_PROJECT_ARCHIVES = 'arch_material_project_archives_v2';
+  // --- IndexedDB 大容量ストレージ管理（容量制限なし） ---
+  const DB_NAME = 'MaterialViewer_IndexedDB_v1';
+  const DB_VERSION = 1;
 
+  function openIndexedDB() {
+    return new Promise((resolve, reject) => {
+      const request = indexedDB.open(DB_NAME, DB_VERSION);
+      request.onupgradeneeded = (e) => {
+        const db = e.target.result;
+        if (!db.objectStoreNames.contains('draft')) db.createObjectStore('draft');
+        if (!db.objectStoreNames.contains('archives')) db.createObjectStore('archives', { keyPath: 'id' });
+        if (!db.objectStoreNames.contains('history')) db.createObjectStore('history', { keyPath: 'id' });
+      };
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+  }
+
+  async function idbSaveDraft(data) {
+    try {
+      const db = await openIndexedDB();
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction('draft', 'readwrite');
+        const store = tx.objectStore('draft');
+        store.put(data, 'current_draft');
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+      });
+    } catch(e) { console.error("IDB Draft Save Error", e); }
+  }
+
+  async function idbLoadDraft() {
+    try {
+      const db = await openIndexedDB();
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction('draft', 'readonly');
+        const store = tx.objectStore('draft');
+        const req = store.get('current_draft');
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error);
+      });
+    } catch(e) { return null; }
+  }
+
+  async function idbSaveArchive(archiveItem) {
+    try {
+      const db = await openIndexedDB();
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction('archives', 'readwrite');
+        const store = tx.objectStore('archives');
+        store.put(archiveItem);
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+      });
+    } catch(e) {}
+  }
+
+  async function idbGetAllArchives() {
+    try {
+      const db = await openIndexedDB();
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction('archives', 'readonly');
+        const store = tx.objectStore('archives');
+        const req = store.getAll();
+        req.onsuccess = () => resolve(req.result || []);
+        req.onerror = () => reject(req.error);
+      });
+    } catch(e) { return []; }
+  }
+
+  async function idbDeleteArchive(id) {
+    try {
+      const db = await openIndexedDB();
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction('archives', 'readwrite');
+        const store = tx.objectStore('archives');
+        store.delete(id);
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+      });
+    } catch(e) {}
+  }
+
+  async function idbSaveHistory(historyItem) {
+    try {
+      const db = await openIndexedDB();
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction('history', 'readwrite');
+        const store = tx.objectStore('history');
+        store.put(historyItem);
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+      });
+    } catch(e) {}
+  }
+
+  async function idbGetAllHistory() {
+    try {
+      const db = await openIndexedDB();
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction('history', 'readonly');
+        const store = tx.objectStore('history');
+        const req = store.getAll();
+        req.onsuccess = () => resolve(req.result || []);
+        req.onerror = () => reject(req.error);
+      });
+    } catch(e) { return []; }
+  }
+
+  async function idbDeleteHistory(id) {
+    try {
+      const db = await openIndexedDB();
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction('history', 'readwrite');
+        const store = tx.objectStore('history');
+        store.delete(id);
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+      });
+    } catch(e) {}
+  }
+
+  async function idbClearAllHistory() {
+    try {
+      const db = await openIndexedDB();
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction('history', 'readwrite');
+        const store = tx.objectStore('history');
+        store.clear();
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+      });
+    } catch(e) {}
+  }
+
+  // --- メインデータ構造 ---
   let projectData = {
     projectName: '新築分譲マンション計画',
     updatedDate: getTodayStr(),
@@ -831,6 +962,7 @@
   let copyingMaterialId = null;
   let selectedSlideIds = new Set();
   let isLibraryForSingleApply = false;
+  let cachedHistoryList = [];
 
   function showToast(msg) {
     const toast = document.getElementById('toastNotification');
@@ -843,108 +975,42 @@
     }, 2400);
   }
 
-  function manualSaveDraft() {
-    saveCurrentDraft();
-    saveCurrentProjectArchive();
-    showToast(`💾 下書きを一時保存しました (${getTimeStr()})`);
+  // 手動保存
+  async function manualSaveDraft() {
+    await saveCurrentDraft();
+    await saveCurrentProjectArchive();
+    showToast(`💾 下書き＆パース画像を保存しました (${getTimeStr()})`);
   }
 
-  function saveCurrentDraft() {
-    try {
-      localStorage.setItem(STORAGE_KEY_DRAFT, JSON.stringify(projectData));
-      const ind = document.getElementById('autoSaveIndicator');
-      if (ind) {
-        ind.textContent = `✓ 自動保存済 (${getTimeStr()})`;
-        ind.style.opacity = '1';
-      }
-    } catch(e) {
-      console.warn("Storage save failed", e);
+  // 自動保存（IndexedDBへ非同期保存）
+  async function saveCurrentDraft() {
+    await idbSaveDraft(projectData);
+    const ind = document.getElementById('autoSaveIndicator');
+    if (ind) {
+      ind.textContent = `✓ 自動保存済 (${getTimeStr()})`;
+      ind.style.opacity = '1';
     }
   }
 
-  function loadCurrentDraft() {
-    try {
-      const draft = localStorage.getItem(STORAGE_KEY_DRAFT);
-      if (draft) {
-        const parsed = JSON.parse(draft);
-        if (parsed.slides && parsed.materials) {
-          projectData = parsed;
-          return true;
-        }
-      }
-    } catch(e) {}
-    return false;
-  }
-
-  function getProjectArchives() {
-    try {
-      return JSON.parse(localStorage.getItem(STORAGE_KEY_PROJECT_ARCHIVES)) || [];
-    } catch(e) { return []; }
-  }
-
-  function saveCurrentProjectArchive() {
+  async function saveCurrentProjectArchive() {
     if ((!projectData.materials || projectData.materials.length === 0) && (!projectData.slides || projectData.slides.length === 0)) return;
-    let archives = getProjectArchives();
     const projName = projectData.projectName || '未設定物件';
-
-    archives = archives.filter(a => a.projectName !== projName);
-    archives.unshift({
-      id: 'proj_' + Date.now(),
+    const archiveItem = {
+      id: 'proj_' + projName.replace(/\s+/g, '_'),
       projectName: projName,
       updatedDate: projectData.updatedDate || getTodayStr(),
       savedAt: Date.now(),
       materials: JSON.parse(JSON.stringify(projectData.materials || [])),
       slides: JSON.parse(JSON.stringify(projectData.slides || []))
-    });
-
-    if (archives.length > 50) archives = archives.slice(0, 50);
-    try {
-      localStorage.setItem(STORAGE_KEY_PROJECT_ARCHIVES, JSON.stringify(archives));
-    } catch(e) {
-      console.warn("Archive storage limit reached", e);
-    }
+    };
+    await idbSaveArchive(archiveItem);
   }
 
-  function deleteProjectArchive(archId) {
-    if (confirm("この物件アーカイブを履歴から完全に削除しますか？")) {
-      let archives = getProjectArchives();
-      archives = archives.filter(a => a.id !== archId);
-      localStorage.setItem(STORAGE_KEY_PROJECT_ARCHIVES, JSON.stringify(archives));
-      openProjectArchiveModal();
-      showToast("🗑️ 物件履歴を削除しました");
-    }
-  }
-
-  function resetProjectDraft() {
-    if (confirm("現在の作業下書きを消去し、真っ新な状態から新規作成しますか？\n（※過去の材料ライブラリ履歴や物件アーカイブは保持されます）")) {
-      localStorage.removeItem(STORAGE_KEY_DRAFT);
-      projectData = {
-        projectName: '新築分譲マンション計画',
-        updatedDate: getTodayStr(),
-        materials: [],
-        slides: []
-      };
-      document.getElementById('projectNameInput').value = projectData.projectName;
-      document.getElementById('projectDateInput').value = projectData.updatedDate;
-      addEmptySlide("外観・アプローチ パース");
-      showToast("🗑️ 下書きをクリアしました");
-    }
-  }
-
-  function getMaterialHistory() {
-    try {
-      return JSON.parse(localStorage.getItem(STORAGE_KEY_HISTORY)) || [];
-    } catch(e) { return []; }
-  }
-
-  function saveToMaterialHistory(mat) {
+  async function saveToMaterialHistory(mat) {
     if (!mat || !mat.part) return;
-    let history = getMaterialHistory();
     const currentProject = projectData.projectName || '未設定物件';
-    
-    history = history.filter(h => !(h.projectName === currentProject && h.part === mat.part && h.specs === mat.specs && h.maker === mat.maker));
-    history.unshift({
-      id: 'lib_' + Date.now() + Math.random().toString(36).substring(2, 6),
+    const historyItem = {
+      id: 'lib_' + currentProject + '_' + mat.part + '_' + (mat.maker || ''),
       projectName: currentProject,
       part: mat.part,
       specs: mat.specs || '',
@@ -952,72 +1018,43 @@
       url: mat.url || '',
       materialImg: mat.materialImg || null,
       savedAt: Date.now()
-    });
-    
-    if (history.length > 250) history = history.slice(0, 250);
-    localStorage.setItem(STORAGE_KEY_HISTORY, JSON.stringify(history));
-  }
-
-  function deleteHistoryItem(historyId) {
-    let history = getMaterialHistory();
-    history = history.filter(h => h.id !== historyId);
-    localStorage.setItem(STORAGE_KEY_HISTORY, JSON.stringify(history));
-    filterLibraryItems();
-    showToast("🗑️ 材料履歴を削除しました");
-  }
-
-  function clearAllMaterialHistory() {
-    if (confirm("これまでに保存された過去の材料ライブラリ履歴をすべて消去しますか？")) {
-      localStorage.removeItem(STORAGE_KEY_HISTORY);
-      openLibraryModal(isLibraryForSingleApply);
-      showToast("🗑️ 材料履歴を全消去しました");
-    }
-  }
-
-  let autoScrollTimer = null;
-  function handleAutoScroll(clientY) {
-    const threshold = 120;
-    const maxSpeed = 24;
-    if (clientY < threshold) {
-      const speed = -maxSpeed * ((threshold - clientY) / threshold);
-      startAutoScroll(speed);
-    } else if (clientY > window.innerHeight - threshold) {
-      const speed = maxSpeed * ((clientY - (window.innerHeight - threshold)) / threshold);
-      startAutoScroll(speed);
-    } else {
-      stopAutoScroll();
-    }
-  }
-
-  function startAutoScroll(speed) {
-    if (autoScrollTimer) cancelAnimationFrame(autoScrollTimer);
-    const step = () => {
-      window.scrollBy(0, speed);
-      autoScrollTimer = requestAnimationFrame(step);
     };
-    autoScrollTimer = requestAnimationFrame(step);
+    await idbSaveHistory(historyItem);
   }
 
-  function stopAutoScroll() {
-    if (autoScrollTimer) {
-      cancelAnimationFrame(autoScrollTimer);
-      autoScrollTimer = null;
+  async function resetProjectDraft() {
+    if (confirm("現在の作業下書きを消去し、真っ新な状態から新規作成しますか？\n（※過去の材料ライブラリや物件アーカイブは保持されます）")) {
+      projectData = {
+        projectName: '新築分譲マンション計画',
+        updatedDate: getTodayStr(),
+        materials: [],
+        slides: []
+      };
+      await idbSaveDraft(projectData);
+      document.getElementById('projectNameInput').value = projectData.projectName;
+      document.getElementById('projectDateInput').value = projectData.updatedDate;
+      addEmptySlide("外観・アプローチ パース");
+      showToast("🗑️ 下書きをクリアしました");
     }
   }
 
-  window.addEventListener('DOMContentLoaded', () => {
-    const hasDraft = loadCurrentDraft();
-    document.getElementById('projectNameInput').value = projectData.projectName;
-    document.getElementById('projectDateInput').value = projectData.updatedDate;
-    
-    if (!hasDraft || projectData.slides.length === 0) {
-      addEmptySlide("外観・アプローチ パース");
-    } else {
+  // --- 初期ロード ---
+  window.addEventListener('DOMContentLoaded', async () => {
+    const loadedDraft = await idbLoadDraft();
+    if (loadedDraft && loadedDraft.slides && loadedDraft.slides.length > 0) {
+      projectData = loadedDraft;
+      document.getElementById('projectNameInput').value = projectData.projectName || '新築分譲マンション計画';
+      document.getElementById('projectDateInput').value = projectData.updatedDate || getTodayStr();
       renderPages();
+    } else {
+      document.getElementById('projectNameInput').value = projectData.projectName;
+      document.getElementById('projectDateInput').value = projectData.updatedDate;
+      addEmptySlide("外観・アプローチ パース");
     }
     setupLassoSelection();
   });
 
+  // --- ショートカット ---
   window.addEventListener('keydown', (e) => {
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
       e.preventDefault();
@@ -1042,6 +1079,7 @@
     }
   });
 
+  // --- 印刷 ---
   function printAllPages() {
     document.body.classList.remove('print-table-only');
     window.print();
@@ -1107,7 +1145,6 @@
 
     window.addEventListener('mousedown', (e) => {
       if (e.target.closest('.page-card, .toolbar, .copy-banner, .modal-overlay')) return;
-      
       isSelecting = true;
       startX = e.clientX;
       startY = e.clientY;
@@ -1125,7 +1162,6 @@
 
     window.addEventListener('mousemove', (e) => {
       if (!isSelecting) return;
-
       const curX = e.clientX;
       const curY = e.clientY;
 
@@ -1165,10 +1201,12 @@
     });
   }
 
+  // --- パース一括追加 ---
   document.getElementById('batchImageInput').addEventListener('change', function(e) {
     const files = Array.from(e.target.files);
     if (!files.length) return;
 
+    let loadedCount = 0;
     files.forEach((file) => {
       const reader = new FileReader();
       reader.onload = (event) => {
@@ -1179,9 +1217,13 @@
           imageSrc: event.target.result,
           pins: []
         });
-        projectData.updatedDate = getTodayStr();
-        document.getElementById('projectDateInput').value = projectData.updatedDate;
-        renderPages();
+        loadedCount++;
+        if (loadedCount === files.length) {
+          projectData.updatedDate = getTodayStr();
+          document.getElementById('projectDateInput').value = projectData.updatedDate;
+          renderPages();
+          showToast(`📷 ${files.length} 枚のパース画像を追加・保存しました！`);
+        }
       };
       reader.readAsDataURL(file);
     });
@@ -1210,6 +1252,7 @@
     
     projectData.slides.splice(sIndex + 1, 0, cloned);
     renderPages();
+    showToast("パースを複製しました");
   }
 
   function deleteSlide(slideId) {
@@ -1256,6 +1299,7 @@
     saveToMaterialHistory(cloned);
     saveCurrentProjectArchive();
     renderPages();
+    showToast("材料を複製しました");
   }
 
   function deleteMaterial(matId) {
@@ -1367,9 +1411,9 @@
     e.target.value = '';
   }
 
-  // --- 過去物件＆パース呼出アーカイブモーダル ---
-  function openProjectArchiveModal() {
-    const archives = getProjectArchives();
+  // --- 過去物件・パース呼出アーカイブ ---
+  async function openProjectArchiveModal() {
+    const archives = await idbGetAllArchives();
     const container = document.getElementById('projectArchiveListContainer');
 
     if (archives.length === 0) {
@@ -1380,7 +1424,6 @@
         const matCount = arch.materials ? arch.materials.length : 0;
         const slideCount = arch.slides ? arch.slides.length : 0;
         
-        // パースサムネイル一覧
         let slidesHtml = '';
         if (arch.slides && arch.slides.length > 0) {
           arch.slides.forEach((sl, sIdx) => {
@@ -1422,9 +1465,16 @@
     document.getElementById('projectArchiveModalOverlay').style.display = 'none';
   }
 
-  // 過去物件から単一のパース（画像＋ピン＋材料）を取り込む
-  function importSingleSlideFromArchive(archId, slideIndex) {
-    const archives = getProjectArchives();
+  async function deleteProjectArchive(archId) {
+    if (confirm("この物件アーカイブを履歴から完全に削除しますか？")) {
+      await idbDeleteArchive(archId);
+      await openProjectArchiveModal();
+      showToast("🗑️ 物件履歴を削除しました");
+    }
+  }
+
+  async function importSingleSlideFromArchive(archId, slideIndex) {
+    const archives = await idbGetAllArchives();
     const arch = archives.find(a => a.id === archId);
     if (!arch || !arch.slides || !arch.slides[slideIndex]) return;
 
@@ -1433,13 +1483,11 @@
     const newSlideId = Date.now() + Math.random();
     clonedSlide.id = newSlideId;
 
-    // パースに乗っているピンに対応する材料を現在のプロジェクト材料表に同期
     const matIdMap = {};
     clonedSlide.pins.forEach(pin => {
       const srcMat = (arch.materials || []).find(m => m.id === pin.materialId);
       if (srcMat) {
         if (!matIdMap[srcMat.id]) {
-          // すでに同じ仕様の材料が現在の材料表にあるか確認
           let existing = projectData.materials.find(m => m.part === srcMat.part && m.specs === srcMat.specs && m.maker === srcMat.maker);
           if (!existing) {
             const newMatId = 'mat_' + Date.now() + Math.random().toString(36).substring(2, 6);
@@ -1469,9 +1517,8 @@
     showToast(`パース「${clonedSlide.title}」と材料仕様をインポートしました！`);
   }
 
-  // 過去物件の丸ごと反映
-  function applyProjectArchive(archId, overwrite = false) {
-    const archives = getProjectArchives();
+  async function applyProjectArchive(archId, overwrite = false) {
+    const archives = await idbGetAllArchives();
     const arch = archives.find(a => a.id === archId);
     if (!arch) return;
 
@@ -1485,7 +1532,6 @@
       document.getElementById('projectNameInput').value = projectData.projectName;
       document.getElementById('projectDateInput').value = projectData.updatedDate;
     } else {
-      // 追加マージ
       const matIdMap = {};
       (arch.materials || []).forEach(m => {
         const newMatId = 'mat_' + Date.now() + Math.random().toString(36).substring(2, 6);
@@ -1514,13 +1560,13 @@
     showToast(`📂「${arch.projectName}」のデータを反映しました！`);
   }
 
-  // --- 材料ライブラリ・検索モーダル制御 ---
-  function openLibraryModal(singleApplyMode = false) {
+  // --- 材料ライブラリ ---
+  async function openLibraryModal(singleApplyMode = false) {
     isLibraryForSingleApply = singleApplyMode;
-    const history = getMaterialHistory();
+    cachedHistoryList = await idbGetAllHistory();
 
-    const projects = Array.from(new Set(history.map(h => h.projectName).filter(Boolean)));
-    const makers = Array.from(new Set(history.map(h => h.maker).filter(Boolean)));
+    const projects = Array.from(new Set(cachedHistoryList.map(h => h.projectName).filter(Boolean)));
+    const makers = Array.from(new Set(cachedHistoryList.map(h => h.maker).filter(Boolean)));
 
     const projSel = document.getElementById('libProjectFilter');
     projSel.innerHTML = '<option value="">すべての物件 (' + projects.length + '物件)</option>';
@@ -1546,12 +1592,11 @@
   }
 
   function filterLibraryItems() {
-    const history = getMaterialHistory();
     const keyword = document.getElementById('libSearchKeyword').value.trim().toLowerCase();
     const selectedProj = document.getElementById('libProjectFilter').value;
     const selectedMaker = document.getElementById('libMakerFilter').value;
 
-    const filtered = history.filter(item => {
+    const filtered = cachedHistoryList.filter(item => {
       const matchProj = !selectedProj || item.projectName === selectedProj;
       const matchMaker = !selectedMaker || item.maker === selectedMaker;
       const matchKw = !keyword || 
@@ -1599,9 +1644,23 @@
     container.innerHTML = html;
   }
 
+  async function deleteHistoryItem(historyId) {
+    await idbDeleteHistory(historyId);
+    cachedHistoryList = await idbGetAllHistory();
+    filterLibraryItems();
+    showToast("🗑️ 材料履歴を削除しました");
+  }
+
+  async function clearAllMaterialHistory() {
+    if (confirm("これまでに保存された過去の材料ライブラリ履歴をすべて消去しますか？")) {
+      await idbClearAllHistory();
+      await openLibraryModal(isLibraryForSingleApply);
+      showToast("🗑️ 材料履歴を全消去しました");
+    }
+  }
+
   function applySingleLibraryItem(historyId) {
-    const history = getMaterialHistory();
-    const h = history.find(item => item.id === historyId);
+    const h = cachedHistoryList.find(item => item.id === historyId);
     if (h) {
       document.getElementById('inputPart').value = h.part || '';
       document.getElementById('inputSpecs').value = h.specs || '';
@@ -1619,8 +1678,7 @@
   }
 
   function importSingleLibraryItem(historyId) {
-    const history = getMaterialHistory();
-    const h = history.find(item => item.id === historyId);
+    const h = cachedHistoryList.find(item => item.id === historyId);
     if (h) {
       projectData.materials.push({
         id: 'mat_' + Date.now() + Math.random().toString(36).substring(2, 6),
@@ -1638,7 +1696,6 @@
   }
 
   function importSelectedLibraryItems() {
-    const history = getMaterialHistory();
     const checks = document.querySelectorAll('.lib-check:checked');
     if (checks.length === 0) {
       alert("追加したい材料にチェックを入れてください。");
@@ -1646,7 +1703,7 @@
     }
     checks.forEach(chk => {
       const hId = chk.dataset.id;
-      const h = history.find(item => item.id === hId);
+      const h = cachedHistoryList.find(item => item.id === hId);
       if (h) {
         projectData.materials.push({
           id: 'mat_' + Date.now() + Math.random().toString(36).substring(2, 6),
@@ -1665,6 +1722,7 @@
     showToast(`選択した ${checks.length} 件の材料を追加しました！`);
   }
 
+  // --- メイン画面描画 ---
   function renderPages() {
     const container = document.getElementById('pagesContainer');
     container.innerHTML = "";
@@ -2222,7 +2280,7 @@
     document.getElementById('modalOverlay').style.display = 'none';
   }
 
-  function saveModalData() {
+  async function saveModalData() {
     const customNo = document.getElementById('inputCustomNo').value.trim();
     const part = document.getElementById('inputPart').value || '未設定';
     const specs = document.getElementById('inputSpecs').value || '';
@@ -2240,7 +2298,7 @@
         mat.maker = maker;
         mat.url = url;
         mat.materialImg = tempMaterialImgSrc;
-        saveToMaterialHistory(mat);
+        await saveToMaterialHistory(mat);
       }
     } else {
       const selVal = document.getElementById('modalMatSelect') ? document.getElementById('modalMatSelect').value : 'new';
@@ -2255,7 +2313,7 @@
           mat.maker = maker;
           mat.url = url;
           mat.materialImg = tempMaterialImgSrc;
-          saveToMaterialHistory(mat);
+          await saveToMaterialHistory(mat);
         }
       } else {
         targetMatId = 'mat_' + Date.now() + Math.random().toString(36).substring(2, 6);
@@ -2269,7 +2327,7 @@
           materialImg: tempMaterialImgSrc
         };
         projectData.materials.push(newMat);
-        saveToMaterialHistory(newMat);
+        await saveToMaterialHistory(newMat);
       }
 
       if (activeSlideId && tempPinCoords) {
