@@ -19,6 +19,7 @@
     background: var(--bg-main);
     color: #1e293b;
     padding-bottom: 80px;
+    user-select: none;
   }
 
   .toolbar {
@@ -108,20 +109,30 @@
     flex-direction: column;
     gap: 32px;
     padding: 0 16px;
+    min-height: 80vh;
   }
   
   /* カードスタイル */
   .page-card {
     background: var(--card-bg);
     border-radius: 8px;
-    border: 1px solid var(--border);
+    border: 2px solid transparent;
+    outline: 1px solid var(--border);
     box-shadow: 0 4px 12px rgba(0,0,0,0.05);
     padding: 20px 24px 24px 24px;
     position: relative;
-    cursor: grab;
-    transition: box-shadow 0.2s, transform 0.2s, border-color 0.2s;
+    cursor: pointer;
+    transition: box-shadow 0.15s, border-color 0.15s, outline-color 0.15s;
   }
-  .page-card:active { cursor: grabbing; }
+  
+  /* 選択されたカード（青枠ハイライト） */
+  .page-card.is-selected {
+    border-color: var(--primary) !important;
+    outline: none !important;
+    box-shadow: 0 0 0 3px rgba(37,99,235,0.25), 0 8px 20px rgba(37,99,235,0.15) !important;
+    background: #f8faff;
+  }
+
   .page-card.dragging {
     opacity: 0.35;
     border: 2px dashed var(--primary);
@@ -143,7 +154,10 @@
     margin-bottom: 14px;
     border-bottom: 1px solid #e2e8f0;
     padding-bottom: 10px;
+    cursor: grab;
   }
+  .card-header:active { cursor: grabbing; }
+
   .card-title-group { display: flex; align-items: center; gap: 10px; }
   .card-badge {
     font-size: 11px;
@@ -166,7 +180,7 @@
   }
   .card-title-input:hover, .card-title-input:focus {
     border-color: var(--border);
-    background: #f8fafc;
+    background: #ffffff;
   }
   .card-actions { display: flex; align-items: center; gap: 6px; }
   .card-date-display { font-size: 12px; color: #64748b; font-weight: bold; margin-right: 8px; }
@@ -178,6 +192,17 @@
     border-radius: 4px;
     border: 1px solid #e2e8f0;
     user-select: none;
+  }
+
+  /* 範囲ドラッグ選択ボックス（ラバーバンド） */
+  .selection-box {
+    position: fixed;
+    border: 1.5px dashed #2563eb;
+    background: rgba(37,99,235,0.12);
+    pointer-events: none;
+    z-index: 10000;
+    display: none;
+    border-radius: 3px;
   }
 
   /* パースエリア */
@@ -251,7 +276,7 @@
     z-index: 50;
   }
 
-  /* ドラッグ中にカーソル直下に追従するフロートピン */
+  /* ドラッグ中のフロートピン */
   .floating-drag-pin {
     position: fixed;
     z-index: 999999;
@@ -455,19 +480,21 @@
   @page { size: A3 landscape; margin: 10mm; }
   @media print {
     body { background: #fff; padding: 0; }
-    .toolbar, .copy-banner, .modal-overlay, .card-actions, .table-btn-group, .row-drag-handle, .popup-del-pin-btn, th.col-handle, td.col-handle, th:last-child, td:last-child, .btn-add-mat, .drag-hint {
+    .toolbar, .copy-banner, .modal-overlay, .card-actions, .table-btn-group, .row-drag-handle, .popup-del-pin-btn, th.col-handle, td.col-handle, th:last-child, td:last-child, .btn-add-mat, .drag-hint, .selection-box {
       display: none !important;
     }
     .pages-container { max-width: 100%; margin: 0; padding: 0; gap: 0; }
     .page-card {
-      border: none;
-      box-shadow: none;
+      border: none !important;
+      outline: none !important;
+      box-shadow: none !important;
       padding: 0;
       page-break-after: always;
       break-after: page;
       min-height: 275mm;
       height: 100%;
       cursor: default;
+      background: #fff !important;
     }
     .card-title-input { border: none; font-size: 18pt; padding: 0; width: 70%; }
     .card-date-display { font-size: 12pt; color: #333; margin-right: 0; }
@@ -516,6 +543,9 @@
   <div id="copyBannerText">📋 材料をコピー中: 貼り付けたいパースの任意の位置をクリックしてください</div>
   <button class="btn btn-secondary" style="padding:4px 10px; font-size:11px;" onclick="cancelCopyMode()">コピー終了 (Esc)</button>
 </div>
+
+<!-- 範囲選択用ラバーバンド矩形 -->
+<div class="selection-box" id="selectionBox"></div>
 
 <div class="pages-container" id="pagesContainer"></div>
 
@@ -592,6 +622,9 @@
   let editingMaterialId = null;
   let tempMaterialImgSrc = null;
   let copyingMaterialId = null;
+  
+  // 選択されているパースカードのID一覧
+  let selectedSlideIds = new Set();
 
   // オートスクロール制御
   let autoScrollTimer = null;
@@ -630,11 +663,127 @@
     if (projectData.slides.length === 0) {
       addEmptySlide("外観・アプローチ パース");
     }
+    setupLassoSelection();
   });
 
+  // キーボードイベント（Deleteキーで選択カード一括削除 / Escで解除）
   window.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') cancelCopyMode();
+    if (e.key === 'Escape') {
+      cancelCopyMode();
+      clearSelection();
+      return;
+    }
+
+    const isInputActive = ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName);
+    if ((e.key === 'Delete' || e.key === 'Backspace') && !isInputActive) {
+      if (selectedSlideIds.size > 0) {
+        e.preventDefault();
+        deleteSelectedSlides();
+      }
+    }
   });
+
+  function clearSelection() {
+    selectedSlideIds.clear();
+    updateCardSelectionVisuals();
+  }
+
+  function toggleSelectSlide(slideId, multiSelect = false) {
+    if (multiSelect) {
+      if (selectedSlideIds.has(slideId)) selectedSlideIds.delete(slideId);
+      else selectedSlideIds.add(slideId);
+    } else {
+      selectedSlideIds.clear();
+      selectedSlideIds.add(slideId);
+    }
+    updateCardSelectionVisuals();
+  }
+
+  function updateCardSelectionVisuals() {
+    document.querySelectorAll('.page-card[data-slide-id]').forEach(card => {
+      const sId = parseFloat(card.dataset.slideId);
+      if (selectedSlideIds.has(sId)) card.classList.add('is-selected');
+      else card.classList.remove('is-selected');
+    });
+  }
+
+  function deleteSelectedSlides() {
+    const count = selectedSlideIds.size;
+    if (count === 0) return;
+    if (confirm(`選択中の ${count} 件のパース画面を削除しますか？\n（※共通材料データ自体は保持されます）`)) {
+      projectData.slides = projectData.slides.filter(s => !selectedSlideIds.has(s.id));
+      selectedSlideIds.clear();
+      renderPages();
+    }
+  }
+
+  // 背景ドラッグでの範囲選択（ラバーバンド矩形選択）
+  function setupLassoSelection() {
+    const box = document.getElementById('selectionBox');
+    let isSelecting = false;
+    let startX, startY;
+
+    window.addEventListener('mousedown', (e) => {
+      // カード内部やボタン、入力欄、ツールバー上の場合は範囲選択を開始しない
+      if (e.target.closest('.page-card, .toolbar, .copy-banner, .modal-overlay')) return;
+      
+      isSelecting = true;
+      startX = e.clientX;
+      startY = e.clientY;
+
+      if (!e.ctrlKey && !e.metaKey && !e.shiftKey) {
+        clearSelection();
+      }
+
+      box.style.left = `${startX}px`;
+      box.style.top = `${startY}px`;
+      box.style.width = '0px';
+      box.style.height = '0px';
+      box.style.display = 'block';
+    });
+
+    window.addEventListener('mousemove', (e) => {
+      if (!isSelecting) return;
+
+      const curX = e.clientX;
+      const curY = e.clientY;
+
+      const left = Math.min(startX, curX);
+      const top = Math.min(startY, curY);
+      const width = Math.abs(curX - startX);
+      const height = Math.abs(curY - startY);
+
+      box.style.left = `${left}px`;
+      box.style.top = `${top}px`;
+      box.style.width = `${width}px`;
+      box.style.height = `${height}px`;
+
+      handleAutoScroll(e.clientY);
+
+      // 矩形交差判定
+      const selRect = { left, top, right: left + width, bottom: top + height };
+      document.querySelectorAll('.page-card[data-slide-id]').forEach(card => {
+        const sId = parseFloat(card.dataset.slideId);
+        const cardRect = card.getBoundingClientRect();
+
+        const isIntersect = !(cardRect.right < selRect.left ||
+                              cardRect.left > selRect.right ||
+                              cardRect.bottom < selRect.top ||
+                              cardRect.top > selRect.bottom);
+
+        if (isIntersect) selectedSlideIds.add(sId);
+        else if (!e.ctrlKey && !e.shiftKey) selectedSlideIds.delete(sId);
+      });
+      updateCardSelectionVisuals();
+    });
+
+    window.addEventListener('mouseup', () => {
+      if (!isSelecting) return;
+      isSelecting = false;
+      box.style.display = 'none';
+      stopAutoScroll();
+    });
+  }
 
   function updateProjectDate(val) {
     projectData.updatedDate = val || getTodayStr();
@@ -691,6 +840,7 @@
   function deleteSlide(slideId) {
     if (confirm("このパース画面を削除しますか？（※材料データ自体は保持されます）")) {
       projectData.slides = projectData.slides.filter(s => s.id !== slideId);
+      selectedSlideIds.delete(slideId);
       renderPages();
     }
   }
@@ -759,13 +909,24 @@
     // 1. 各パース画面を描画
     projectData.slides.forEach((slide, sIndex) => {
       const card = document.createElement('div');
-      card.className = 'page-card';
+      card.className = `page-card ${selectedSlideIds.has(slide.id) ? 'is-selected' : ''}`;
       card.dataset.index = sIndex;
-      card.draggable = true;
+      card.dataset.slideId = slide.id;
 
-      // パースカードのドラッグ（移動 ＆ Ctrl+ドラッグで複製）
-      card.addEventListener('dragstart', (e) => {
-        if (e.target.closest('.image-wrapper, .image-stage, .pin, input, textarea, select, button, .table-section')) {
+      // 白枠クリックでカードを選択状態にする
+      card.addEventListener('click', (e) => {
+        if (e.target.closest('input, textarea, select, button, .image-wrapper, .image-stage, .pin, .table-section')) return;
+        const isMulti = e.ctrlKey || e.metaKey || e.shiftKey;
+        toggleSelectSlide(slide.id, isMulti);
+      });
+
+      // パースカードのヘッダー掴みドラッグ
+      const header = document.createElement('div');
+      header.className = 'card-header';
+      header.draggable = true;
+
+      header.addEventListener('dragstart', (e) => {
+        if (e.target.closest('input, button')) {
           e.preventDefault();
           return false;
         }
@@ -773,11 +934,11 @@
         e.dataTransfer.setData('text/plain', sIndex);
       });
 
-      card.addEventListener('drag', (e) => {
+      header.addEventListener('drag', (e) => {
         if (e.clientY !== 0) handleAutoScroll(e.clientY);
       });
 
-      card.addEventListener('dragend', () => {
+      header.addEventListener('dragend', () => {
         card.classList.remove('dragging');
         stopAutoScroll();
         document.querySelectorAll('.page-card').forEach(c => {
@@ -831,8 +992,6 @@
         renderPages();
       });
 
-      const header = document.createElement('div');
-      header.className = 'card-header';
       header.innerHTML = `
         <div class="card-title-group">
           <span class="card-badge">パース画面 ${sIndex + 1}</span>
@@ -840,8 +999,8 @@
         </div>
         <div class="card-actions">
           <span class="card-date-display">${projectData.updatedDate}</span>
-          <button class="btn btn-outline" style="padding:4px 8px; font-size:11px; background:#f0fdf4; color:#15803d; border-color:#bbf7d0;" onclick="duplicateSlide(${slide.id})" title="このパースを真下にコピー">📋 複製</button>
-          <span class="drag-hint">↕ 枠を掴んで並替</span>
+          <button class="btn btn-outline" style="padding:4px 8px; font-size:11px; background:#f0fdf4; color:#15803d; border-color:#bbf7d0;" onclick="duplicateSlide(${slide.id})" title="このパースを直下にコピー">📋 複製</button>
+          <span class="drag-hint">↕ ヘッダー掴んで並替</span>
           <button class="btn btn-outline" style="padding:4px 8px;" onclick="moveSlide(${sIndex}, -1)" ${sIndex === 0 ? 'disabled' : ''}>▲</button>
           <button class="btn btn-outline" style="padding:4px 8px;" onclick="moveSlide(${sIndex}, 1)" ${sIndex === projectData.slides.length - 1 ? 'disabled' : ''}>▼</button>
           <button class="btn btn-danger" style="padding:4px 8px;" onclick="deleteSlide(${slide.id})">削除</button>
@@ -851,9 +1010,6 @@
 
       const imgWrapper = document.createElement('div');
       imgWrapper.className = 'image-wrapper';
-
-      imgWrapper.addEventListener('mouseenter', () => card.setAttribute('draggable', 'false'));
-      imgWrapper.addEventListener('mouseleave', () => card.setAttribute('draggable', 'true'));
 
       if (slide.imageSrc) {
         const imgStage = document.createElement('div');
@@ -910,8 +1066,6 @@
             startX = e.clientX;
             startY = e.clientY;
 
-            const isInitialCopy = e.ctrlKey || e.metaKey;
-
             const onKeyChange = (ke) => {
               if (!floatingPin) return;
               const isCopyNow = ke.ctrlKey || ke.metaKey;
@@ -932,7 +1086,6 @@
 
               if (dist > 4 && !floatingPin) {
                 moved = true;
-                // 即座にフロートピンを作成して表示
                 floatingPin = document.createElement('div');
                 const isCopy = ev.ctrlKey || ev.metaKey;
                 floatingPin.className = `floating-drag-pin ${isCopy ? 'mode-copy' : 'mode-move'}`;
@@ -980,7 +1133,6 @@
                     const isCopy = ev.ctrlKey || ev.metaKey;
 
                     if (isCopy) {
-                      // 【Ctrl+ドラッグ】複製して新ピン配置
                       targetSlide.pins.push({
                         id: Date.now() + Math.random(),
                         materialId: pin.materialId,
@@ -988,7 +1140,6 @@
                         y: newY
                       });
                     } else {
-                      // 【通常ドラッグ】移動
                       if (targetSlideId === slide.id) {
                         pin.x = newX;
                         pin.y = newY;
@@ -1080,7 +1231,7 @@
     masterCard.className = 'page-card';
     masterCard.draggable = false;
     masterCard.innerHTML = `
-      <div class="card-header">
+      <div class="card-header" style="cursor:default;">
         <div class="card-title-group">
           <span class="card-badge master">最終ページ</span>
           <div style="font-size:17px; font-weight:bold;">プロジェクト共通 材料仕上表</div>
