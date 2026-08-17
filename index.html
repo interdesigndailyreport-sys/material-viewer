@@ -585,7 +585,6 @@
     color: #334155;
   }
 
-  /* 操作ガイド（ヘルプ）モーダル用スタイル */
   .help-section-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -638,30 +637,81 @@
     color: #0f172a;
   }
 
-  @page { size: A3 landscape; margin: 10mm; }
+  /* 印刷レイアウト（A3横フル活用・パース最大化） */
+  @page { size: A3 landscape; margin: 8mm 10mm; }
   @media print {
-    body { background: #fff; padding: 0; }
+    body { background: #fff !important; padding: 0 !important; }
     .toolbar, .copy-banner, .modal-overlay, .card-actions, .table-btn-group, .row-drag-handle, .popup-del-pin-btn, th.col-handle, td.col-handle, th:last-child, td:last-child, .btn-add-mat, .drag-hint, .selection-box, .toast-notification {
       display: none !important;
     }
-    .pages-container { max-width: 100%; margin: 0; padding: 0; gap: 0; }
+    .pages-container { max-width: 100% !important; margin: 0 !important; padding: 0 !important; gap: 0 !important; }
+    
     .page-card {
       border: none !important;
       outline: none !important;
       box-shadow: none !important;
-      padding: 0;
-      page-break-after: always;
-      break-after: page;
-      min-height: 275mm;
-      height: 100%;
-      cursor: default;
+      padding: 0 !important;
+      page-break-after: always !important;
+      break-after: page !important;
+      height: 278mm !important;
+      min-height: 278mm !important;
+      max-height: 278mm !important;
+      cursor: default !important;
       background: #fff !important;
+      display: flex !important;
+      flex-direction: column !important;
+      justify-content: flex-start !important;
+      box-sizing: border-box !important;
     }
-    .card-title-input { border: none; font-size: 18pt; padding: 0; width: 70%; }
-    .card-date-display { font-size: 12pt; color: #333; margin-right: 0; }
-    .image-wrapper { background: none; min-height: 0; }
-    .image-stage { max-height: 180mm; }
-    .image-stage img { max-height: 180mm; width: auto; max-width: 100%; object-fit: contain; }
+    
+    .card-header {
+      margin-bottom: 6px !important;
+      padding-bottom: 6px !important;
+      border-bottom: 1.5px solid #cbd5e1 !important;
+      display: flex !important;
+      justify-content: space-between !important;
+      align-items: center !important;
+    }
+    .card-title-input {
+      border: none !important;
+      font-size: 20pt !important;
+      font-weight: bold !important;
+      padding: 0 !important;
+      width: 75% !important;
+      background: transparent !important;
+    }
+    .card-date-display {
+      font-size: 13pt !important;
+      color: #333 !important;
+      margin-right: 0 !important;
+    }
+
+    /* パース画像エリアを余白なしで最大化 */
+    .image-wrapper {
+      background: none !important;
+      min-height: 0 !important;
+      flex: 1 !important;
+      height: calc(100% - 40px) !important;
+      display: flex !important;
+      justify-content: center !important;
+      align-items: center !important;
+      overflow: hidden !important;
+    }
+    .image-stage {
+      max-height: 250mm !important;
+      width: auto !important;
+      max-width: 100% !important;
+      display: inline-block !important;
+      position: relative !important;
+      line-height: 0 !important;
+    }
+    .image-stage img {
+      max-height: 250mm !important;
+      width: auto !important;
+      max-width: 100% !important;
+      object-fit: contain !important;
+    }
+
     .pin {
       background: #000 !important;
       color: #fff !important;
@@ -672,6 +722,7 @@
     .pin-popup { display: none !important; }
     .no-input { border: none !important; background: transparent !important; padding: 0 !important; }
 
+    /* 材料表のみ印刷時の制御 */
     body.print-table-only .page-card:not(.master-card) {
       display: none !important;
     }
@@ -858,7 +909,7 @@
       <div class="help-card">
         <div class="help-card-title">📌 1. パースの追加とピンの配置</div>
         <ul class="help-list">
-          <li><strong>パース追加:</strong> 上部ボタンから複数画像をドラッグ＆ドロップまたは一括選択で登録できます。</li>
+          <li><strong>パース追加/差替:</strong> 上部ボタンから画像を一括追加できます。カード右上の「📷 画像差替」で個別に差し替えも可能です。</li>
           <li><strong>ピンの配置:</strong> パース画像の任意の位置を<strong>クリック</strong>すると、仕様入力画面が開きピンが立ちます。</li>
           <li><strong>仕様連動:</strong> パースと材料表は完全同期。番号や仕様を変更すると全パースに一括反映されます。</li>
         </ul>
@@ -877,7 +928,7 @@
         <div class="help-card-title">🗂️ 3. パースカードの複製・削除・並べ替え</div>
         <ul class="help-list">
           <li><strong>直下に複製:</strong> カード右上の「📋 複製」ボタンで、画像とピンを保ったまま真下にコピーできます。</li>
-          <li><strong>ヘッダー並べ替え:</strong> カード上部を掴んで上下にドラッグ＆ドロップで並べ替え可能です。</li>
+          <li><strong>ヘッダー並べ替え:</strong> カード上部を掴んで上下にドラッグ＆ドロップで並べ替え可能です（画面端で自動スクロール）。</li>
           <li><strong>Deleteキー削除:</strong> カードの白枠をクリックして選択、または背景ドラッグの<strong>範囲指定枠</strong>で囲んで <span class="help-key">Delete</span> キーを押すと一括削除できます。</li>
         </ul>
       </div>
@@ -893,7 +944,7 @@
     </div>
 
     <div style="background:#eff6ff; border:1px solid #bfdbfe; border-radius:6px; padding:10px 14px; font-size:12px; color:#1e40af; display:flex; justify-content:space-between; align-items:center;">
-      <span>💾 <strong>自動保存＆ショートカット:</strong> 作業内容は自動保存されます。手動で即時保存したい時は <span class="help-key">Ctrl</span> + <span class="help-key">S</span> を押してください。</span>
+      <span>💾 <strong>自動保存＆ショートカット:</strong> パース画像も含め自動保存されます。即時手動保存は <span class="help-key">Ctrl</span> + <span class="help-key">S</span> です。</span>
     </div>
 
     <div class="modal-actions" style="margin-top:14px;">
@@ -991,18 +1042,19 @@
   let isLibraryForSingleApply = false;
   let lastPinDragEndTime = 0;
 
-  // --- ドラッグ中の上下オートスクロール制御 ---
+  // --- ドラッグ中の上下オートスクロール制御（カード・ピン共通） ---
   let autoScrollSpeed = 0;
   let autoScrollAnimId = null;
 
   function updateAutoScroll(clientY) {
+    if (!clientY || clientY === 0) return;
     const threshold = 120;
     const maxSpeed = 18;
-    if (clientY < threshold) {
+    if (clientY < threshold && clientY > 0) {
       const factor = (threshold - clientY) / threshold;
       autoScrollSpeed = -maxSpeed * Math.min(Math.max(factor, 0.15), 1);
       if (!autoScrollAnimId) runAutoScroll();
-    } else if (clientY > window.innerHeight - threshold) {
+    } else if (clientY > window.innerHeight - threshold && clientY < window.innerHeight + 60) {
       const factor = (clientY - (window.innerHeight - threshold)) / threshold;
       autoScrollSpeed = maxSpeed * Math.min(Math.max(factor, 0.15), 1);
       if (!autoScrollAnimId) runAutoScroll();
@@ -1027,6 +1079,12 @@
     }
     autoScrollSpeed = 0;
   }
+
+  window.addEventListener('dragover', (e) => {
+    if (e.clientY && e.clientY !== 0) updateAutoScroll(e.clientY);
+  });
+  window.addEventListener('dragend', () => stopAutoScroll());
+  window.addEventListener('drop', () => stopAutoScroll());
 
   function showToast(msg) {
     const toast = document.getElementById('toastNotification');
@@ -1070,13 +1128,30 @@
     }
   }
 
-  // --- ヘルプモーダル制御 ---
   function openHelpModal() {
     document.getElementById('helpModalOverlay').style.display = 'flex';
   }
 
   function closeHelpModal() {
     document.getElementById('helpModalOverlay').style.display = 'none';
+  }
+
+  // --- パース画像の個別差し替え ---
+  function handleReplaceSlideImage(slideId, event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const slide = projectData.slides.find(s => String(s.id) === String(slideId));
+      if (slide) {
+        slide.imageSrc = ev.target.result;
+        saveCurrentDraft();
+        renderPages();
+        showToast(`パース画像を差し替えました`);
+      }
+    };
+    reader.readAsDataURL(file);
+    event.target.value = '';
   }
 
   // --- 完成材料表の一括アーカイブ管理 ---
@@ -1377,6 +1452,8 @@
       box.style.top = `${top}px`;
       box.style.width = `${width}px`;
       box.style.height = `${height}px`;
+
+      updateAutoScroll(curY);
 
       const selRect = { left, top, right: left + width, bottom: top + height };
       document.querySelectorAll('.page-card[data-slide-id]').forEach(card => {
@@ -1775,7 +1852,7 @@
       card.dataset.slideId = slide.id;
 
       card.addEventListener('click', (e) => {
-        if (e.target.closest('input, textarea, select, button, .image-wrapper, .image-stage, .pin, .table-section')) return;
+        if (e.target.closest('input, textarea, select, button, label, .image-wrapper, .image-stage, .pin, .table-section')) return;
         const isMulti = e.ctrlKey || e.metaKey || e.shiftKey;
         toggleSelectSlide(slide.id, isMulti);
       });
@@ -1785,7 +1862,7 @@
       header.draggable = true;
 
       header.addEventListener('dragstart', (e) => {
-        if (e.target.closest('input, button')) {
+        if (e.target.closest('input, button, label')) {
           e.preventDefault();
           return false;
         }
@@ -1795,6 +1872,7 @@
 
       header.addEventListener('dragend', () => {
         card.classList.remove('dragging');
+        stopAutoScroll();
         document.querySelectorAll('.page-card').forEach(c => {
           c.classList.remove('drag-over-top', 'drag-over-bottom');
         });
@@ -1819,6 +1897,7 @@
 
       card.addEventListener('drop', (e) => {
         e.preventDefault();
+        stopAutoScroll();
         const isTop = card.classList.contains('drag-over-top');
         card.classList.remove('drag-over-top', 'drag-over-bottom');
 
@@ -1851,6 +1930,10 @@
         </div>
         <div class="card-actions">
           <span class="card-date-display">${projectData.updatedDate}</span>
+          <label class="btn btn-outline file-label" style="padding:4px 8px; font-size:11px;" title="このパース画像を別の画像に変更">
+            📷 画像差替
+            <input type="file" accept="image/*" onchange="handleReplaceSlideImage('${slide.id}', event)">
+          </label>
           <button class="btn btn-outline" style="padding:4px 8px; font-size:11px; background:#f0fdf4; color:#15803d; border-color:#bbf7d0;" onclick="duplicateSlide('${slide.id}')" title="このパースを直下にコピー">📋 複製</button>
           <span class="drag-hint">↕ ヘッダー掴んで並替</span>
           <button class="btn btn-outline" style="padding:4px 8px;" onclick="moveSlide(${sIndex}, -1)" ${sIndex === 0 ? 'disabled' : ''}>▲</button>
@@ -2165,6 +2248,7 @@
       });
       row.addEventListener('dragover', (e) => {
         e.preventDefault();
+        if (e.clientY && e.clientY !== 0) updateAutoScroll(e.clientY);
         row.classList.add('row-drag-over');
       });
       row.addEventListener('dragleave', () => {
@@ -2376,7 +2460,6 @@
     }
 
     closeModal();
-    saveCompletedTableArchive();
     renderPages();
     showToast("材料仕様を保存しました");
   }
@@ -2454,15 +2537,57 @@
   th, td { border: 1px solid var(--border); padding: 10px 12px; text-align: left; vertical-align: middle; }
   th { background: #f8fafc; font-weight: bold; white-space: nowrap; }
   .table-mat-thumb { width: 56px; height: 56px; object-fit: cover; border-radius: 4px; border: 1px solid var(--border); display: block; margin: auto; }
-  @page { size: A3 landscape; margin: 10mm; }
+  @page { size: A3 landscape; margin: 8mm 10mm; }
   @media print {
-    body { background: #fff; padding: 0; }
+    body { background: #fff !important; padding: 0 !important; }
     .toolbar { display: none !important; }
-    .pages-container { max-width: 100%; margin: 0; padding: 0; }
-    .page-card { border: none; box-shadow: none; padding: 0; page-break-after: always; break-after: page; min-height: 275mm; }
-    .image-wrapper { background: none; min-height: 0; }
-    .image-stage { max-height: 180mm; }
-    .image-stage img { max-height: 180mm; width: auto; max-width: 100%; object-fit: contain; }
+    .pages-container { max-width: 100% !important; margin: 0 !important; padding: 0 !important; }
+    .page-card {
+      border: none !important;
+      box-shadow: none !important;
+      padding: 0 !important;
+      page-break-after: always !important;
+      break-after: page !important;
+      height: 278mm !important;
+      min-height: 278mm !important;
+      max-height: 278mm !important;
+      display: flex !important;
+      flex-direction: column !important;
+      justify-content: flex-start !important;
+      box-sizing: border-box !important;
+    }
+    .card-header {
+      margin-bottom: 6px !important;
+      padding-bottom: 6px !important;
+      border-bottom: 1.5px solid #cbd5e1 !important;
+      display: flex !important;
+      justify-content: space-between !important;
+    }
+    .card-title { font-size: 20pt !important; font-weight: bold !important; }
+    .card-date { font-size: 13pt !important; color: #333 !important; }
+    .image-wrapper {
+      background: none !important;
+      min-height: 0 !important;
+      flex: 1 !important;
+      height: calc(100% - 40px) !important;
+      display: flex !important;
+      justify-content: center !important;
+      align-items: center !important;
+      overflow: hidden !important;
+    }
+    .image-stage {
+      max-height: 250mm !important;
+      width: auto !important;
+      max-width: 100% !important;
+      display: inline-block !important;
+      position: relative !important;
+    }
+    .image-stage img {
+      max-height: 250mm !important;
+      width: auto !important;
+      max-width: 100% !important;
+      object-fit: contain !important;
+    }
     .pin { background: #000 !important; color: #fff !important; border: 1.5px solid #000 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     .pin-popup { display: none !important; }
 
