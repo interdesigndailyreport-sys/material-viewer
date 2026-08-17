@@ -101,22 +101,31 @@
   }
   .slide-actions { display: flex; gap: 8px; }
 
+  /* パース外枠 */
   .image-wrapper {
     position: relative;
     width: 100%;
     background: #0f172a;
     border-radius: 6px;
     overflow: visible;
-    cursor: crosshair;
     display: flex;
     justify-content: center;
     align-items: center;
     min-height: 280px;
     user-select: none;
   }
-  .image-wrapper img {
-    width: 100%;
+  /* パース画像とピンの正確な同期ステージ */
+  .image-stage {
+    position: relative;
+    display: inline-block;
+    line-height: 0;
+    max-width: 100%;
+    cursor: crosshair;
+  }
+  .image-stage img {
     display: block;
+    width: 100%;
+    height: auto;
     user-select: none;
     pointer-events: none;
   }
@@ -126,6 +135,7 @@
     padding: 40px;
     text-align: center;
     cursor: pointer;
+    line-height: 1.5;
   }
 
   /* ピン（ドラッグ対応） */
@@ -148,6 +158,7 @@
     z-index: 10;
     user-select: none;
     touch-action: none;
+    line-height: 1;
     transition: background 0.15s, transform 0.15s;
   }
   .pin:hover, .pin.is-active {
@@ -180,6 +191,7 @@
     box-shadow: 0 6px 20px rgba(0,0,0,0.35);
     cursor: default;
     pointer-events: auto;
+    text-align: left;
   }
   .pin-popup::after {
     content: '';
@@ -298,6 +310,7 @@
   }
   .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
 
+  /* 印刷設定（A3横） */
   @page { size: A3 landscape; margin: 10mm; }
   @media print {
     body { background: #fff; padding: 0; }
@@ -315,8 +328,9 @@
       min-height: 270mm;
     }
     .slide-title-input { border: none; font-size: 18pt; padding: 0; }
-    .image-wrapper { background: none; max-height: 160mm; }
-    .image-wrapper img { max-height: 160mm; object-fit: contain; }
+    .image-wrapper { background: none; min-height: 0; }
+    .image-stage { max-height: 160mm; }
+    .image-stage img { max-height: 160mm; width: auto; max-width: 100%; object-fit: contain; }
     .pin {
       background: #000 !important;
       color: #fff !important;
@@ -495,14 +509,18 @@
       imgWrapper.className = 'image-wrapper';
 
       if (slide.imageSrc) {
+        // 画像とピンを同期させるステージ要素
+        const imgStage = document.createElement('div');
+        imgStage.className = 'image-stage';
+
         const img = document.createElement('img');
         img.src = slide.imageSrc;
-        imgWrapper.appendChild(img);
+        imgStage.appendChild(img);
 
-        // パース背景クリックでピン追加
-        imgWrapper.addEventListener('click', (e) => {
+        // ステージ上をクリックでピン追加
+        imgStage.addEventListener('click', (e) => {
           if (e.target.closest('.pin')) return;
-          const rect = imgWrapper.getBoundingClientRect();
+          const rect = imgStage.getBoundingClientRect();
           const x = ((e.clientX - rect.left) / rect.width) * 100;
           const y = ((e.clientY - rect.top) / rect.height) * 100;
           openAddPinModal(slide.id, x, y);
@@ -517,7 +535,6 @@
           pinEl.style.top = `${pin.y}%`;
           pinEl.textContent = pinNo;
 
-          // ドラッグ・クリック判定用変数
           let isDragging = false;
           let startX, startY;
           let moved = false;
@@ -536,7 +553,7 @@
               if (dist > 4) {
                 moved = true;
                 pinEl.classList.add('is-dragging');
-                const rect = imgWrapper.getBoundingClientRect();
+                const rect = imgStage.getBoundingClientRect();
                 let curX = ((ev.clientX - rect.left) / rect.width) * 100;
                 let curY = ((ev.clientY - rect.top) / rect.height) * 100;
                 curX = Math.max(0, Math.min(100, curX));
@@ -562,17 +579,15 @@
 
           pinEl.addEventListener('pointerdown', onPointerDown);
 
-          // クリック（ドラッグしなかった場合のみポップアップ固定）
           pinEl.addEventListener('click', (e) => {
             e.stopPropagation();
-            if (moved) return; // ドラッグ移動時は開閉しない
+            if (moved) return;
             document.querySelectorAll('.pin').forEach(p => {
               if (p !== pinEl) p.classList.remove('is-active');
             });
             pinEl.classList.toggle('is-active');
           });
 
-          // ポップアップカード
           const popup = document.createElement('div');
           popup.className = 'pin-popup';
           popup.addEventListener('click', (e) => e.stopPropagation());
@@ -589,8 +604,10 @@
             </div>
           `;
           pinEl.appendChild(popup);
-          imgWrapper.appendChild(pinEl);
+          imgStage.appendChild(pinEl);
         });
+
+        imgWrapper.appendChild(imgStage);
       } else {
         const placeholder = document.createElement('div');
         placeholder.className = 'empty-image-placeholder';
@@ -616,7 +633,6 @@
       }
       slideEl.appendChild(imgWrapper);
 
-      // 下部テーブル
       const tableSection = document.createElement('div');
       tableSection.className = 'table-section';
       
@@ -800,10 +816,11 @@
   .slide-card { background: var(--card-bg); border-radius: 8px; border: 1px solid var(--border); box-shadow: 0 4px 12px rgba(0,0,0,0.05); padding: 20px 24px; }
   .slide-title { font-size: 18px; font-weight: bold; margin-bottom: 12px; border-bottom: 1px solid #e2e8f0; padding-bottom: 8px; }
   .image-wrapper { position: relative; width: 100%; background: #0f172a; border-radius: 6px; overflow: visible; display: flex; justify-content: center; align-items: center; user-select: none; }
-  .image-wrapper img { width: 100%; display: block; pointer-events: none; }
-  .pin { position: absolute; width: 28px; height: 28px; background: var(--pin-bg); color: #fff; border: 2px solid var(--pin-accent); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold; transform: translate(-50%, -50%); cursor: pointer; box-shadow: 0 2px 6px rgba(0,0,0,0.5); z-index: 10; transition: 0.15s; }
+  .image-stage { position: relative; display: inline-block; line-height: 0; max-width: 100%; }
+  .image-stage img { display: block; width: 100%; height: auto; pointer-events: none; }
+  .pin { position: absolute; width: 28px; height: 28px; background: var(--pin-bg); color: #fff; border: 2px solid var(--pin-accent); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold; transform: translate(-50%, -50%); cursor: pointer; box-shadow: 0 2px 6px rgba(0,0,0,0.5); z-index: 10; line-height: 1; transition: 0.15s; }
   .pin:hover, .pin.is-active { transform: translate(-50%, -50%) scale(1.15); background: var(--primary); z-index: 50; }
-  .pin-popup { position: absolute; bottom: 34px; left: 50%; transform: translateX(-50%); width: 280px; background: rgba(15, 23, 42, 0.96); color: #fff; padding: 12px 14px; border-radius: 6px; font-size: 11.5px; line-height: 1.45; display: none; z-index: 60; box-shadow: 0 6px 20px rgba(0,0,0,0.35); }
+  .pin-popup { position: absolute; bottom: 34px; left: 50%; transform: translateX(-50%); width: 280px; background: rgba(15, 23, 42, 0.96); color: #fff; padding: 12px 14px; border-radius: 6px; font-size: 11.5px; line-height: 1.45; display: none; z-index: 60; box-shadow: 0 6px 20px rgba(0,0,0,0.35); text-align: left; }
   .pin-popup::after { content: ''; position: absolute; bottom: -16px; left: 0; width: 100%; height: 20px; background: transparent; }
   .pin:hover .pin-popup, .pin.is-active .pin-popup { display: block; }
   .popup-mat-img { width: 100%; height: 140px; border-radius: 4px; overflow: hidden; margin-bottom: 8px; background: #000; border: 1px solid rgba(255,255,255,0.2); }
@@ -821,7 +838,9 @@
     .toolbar { display: none !important; }
     .slides-container { max-width: 100%; margin: 0; padding: 0; }
     .slide-card { border: none; box-shadow: none; padding: 0; page-break-after: always; break-after: page; min-height: 270mm; }
-    .image-wrapper img { max-height: 160mm; object-fit: contain; }
+    .image-wrapper { background: none; min-height: 0; }
+    .image-stage { max-height: 160mm; }
+    .image-stage img { max-height: 160mm; width: auto; max-width: 100%; object-fit: contain; }
     .pin { background: #000 !important; color: #fff !important; border: 1.5px solid #000 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     .pin-popup { display: none !important; }
   }
@@ -843,9 +862,11 @@
     const wrapper = document.createElement('div');
     wrapper.className = 'image-wrapper';
     if (slide.imageSrc) {
+      const stage = document.createElement('div');
+      stage.className = 'image-stage';
       const img = document.createElement('img');
       img.src = slide.imageSrc;
-      wrapper.appendChild(img);
+      stage.appendChild(img);
       slide.pins.forEach((pin, idx) => {
         const no = idx + 1;
         const pEl = document.createElement('div');
@@ -859,8 +880,9 @@
         pop.onclick = (e) => e.stopPropagation();
         pop.innerHTML = (pin.materialImg ? '<div class="popup-mat-img"><img src="' + pin.materialImg + '" alt="材料写真"></div>' : '') + '<div class="popup-title">No.' + no + ' ' + pin.part + '</div><div>' + pin.specs.replace(/\\n/g, '<br>') + '</div>' + (pin.maker ? '<div style="color:#94a3b8;margin-top:4px;">/' + pin.maker + '</div>' : '') + (pin.url ? '<a class="popup-link" href="' + pin.url + '" target="_blank" rel="noopener noreferrer">メーカー詳細を開く →</a>' : '');
         pEl.appendChild(pop);
-        wrapper.appendChild(pEl);
+        stage.appendChild(pEl);
       });
+      wrapper.appendChild(stage);
     }
     card.appendChild(wrapper);
     let rows = '';
