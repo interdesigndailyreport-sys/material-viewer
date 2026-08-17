@@ -216,7 +216,7 @@
     line-height: 1.6;
   }
 
-  /* ピン（ドラッグ対応） */
+  /* ピン（通常時およびフロートドラッグ時） */
   .pin {
     position: absolute;
     min-width: 28px;
@@ -246,12 +246,17 @@
     background: var(--primary);
     z-index: 50;
   }
-  .pin.is-dragging {
+  /* ドラッグ中の超なめらか追従スタイル */
+  .pin.is-floating {
+    position: fixed !important;
+    z-index: 99999 !important;
+    pointer-events: none !important;
     cursor: grabbing !important;
     background: #059669 !important;
-    transform: translate(-50%, -50%) scale(1.3);
-    box-shadow: 0 6px 16px rgba(0,0,0,0.7);
-    z-index: 1000 !important;
+    border-color: #6ee7b7 !important;
+    transform: translate(-50%, -50%) scale(1.3) !important;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.6) !important;
+    transition: none !important; /* 遅延なく60fpsでポインターに追従 */
   }
 
   .pin-popup {
@@ -283,7 +288,7 @@
     height: 20px;
     background: transparent;
   }
-  .pin:hover:not(.is-dragging) .pin-popup, .pin.is-active:not(.is-dragging) .pin-popup {
+  .pin:hover:not(.is-floating) .pin-popup, .pin.is-active:not(.is-floating) .pin-popup {
     display: block;
   }
   
@@ -554,8 +559,8 @@
   // オートスクロール制御
   let autoScrollTimer = null;
   function handleAutoScroll(clientY) {
-    const threshold = 100;
-    const maxSpeed = 22;
+    const threshold = 120;
+    const maxSpeed = 24;
     if (clientY < threshold) {
       const speed = -maxSpeed * ((threshold - clientY) / threshold);
       startAutoScroll(speed);
@@ -708,7 +713,7 @@
       card.dataset.index = sIndex;
       card.draggable = true;
 
-      // パース画像領域に入った時はカードのドラッグを自動解除（ピン誤爆防止）
+      // パースカードのドラッグ（移動 ＆ Ctrl+ドラッグで複製）
       card.addEventListener('dragstart', (e) => {
         if (e.target.closest('.image-wrapper, .image-stage, .pin, input, textarea, select, button, .table-section')) {
           e.preventDefault();
@@ -744,9 +749,22 @@
         card.classList.remove('drag-over');
         const fromIndex = parseInt(e.dataTransfer.getData('text/plain'), 10);
         const toIndex = sIndex;
-        if (fromIndex !== toIndex && !isNaN(fromIndex)) {
-          const item = projectData.slides.splice(fromIndex, 1)[0];
-          projectData.slides.splice(toIndex, 0, item);
+
+        if (!isNaN(fromIndex)) {
+          const isCopy = e.ctrlKey || e.metaKey;
+          if (isCopy) {
+            // 【Ctrl+ドラッグ】パースカードを丸ごと複製
+            const src = projectData.slides[fromIndex];
+            const cloned = JSON.parse(JSON.stringify(src));
+            cloned.id = Date.now() + Math.random();
+            cloned.title = src.title + " (コピー)";
+            cloned.pins.forEach(p => { p.id = Date.now() + Math.random(); });
+            projectData.slides.splice(toIndex + 1, 0, cloned);
+          } else if (fromIndex !== toIndex) {
+            // 【通常ドラッグ】カード順序の入れ替え
+            const item = projectData.slides.splice(fromIndex, 1)[0];
+            projectData.slides.splice(toIndex, 0, item);
+          }
           renderPages();
         }
       });
@@ -760,7 +778,7 @@
         </div>
         <div class="card-actions">
           <span class="card-date-display">${projectData.updatedDate}</span>
-          <span class="drag-hint">↕ 枠を掴んで並替</span>
+          <span class="drag-hint">↕ 枠を掴んで並替 (Ctrl+ドラッグで複製)</span>
           <button class="btn btn-outline" style="padding:4px 8px;" onclick="moveSlide(${sIndex}, -1)" ${sIndex === 0 ? 'disabled' : ''}>▲</button>
           <button class="btn btn-outline" style="padding:4px 8px;" onclick="moveSlide(${sIndex}, 1)" ${sIndex === projectData.slides.length - 1 ? 'disabled' : ''}>▼</button>
           <button class="btn btn-danger" style="padding:4px 8px;" onclick="deleteSlide(${slide.id})">削除</button>
@@ -771,7 +789,6 @@
       const imgWrapper = document.createElement('div');
       imgWrapper.className = 'image-wrapper';
 
-      // パース画像領域上ではカードのドラッグを一時的にOFFにする
       imgWrapper.addEventListener('mouseenter', () => card.setAttribute('draggable', 'false'));
       imgWrapper.addEventListener('mouseleave', () => card.setAttribute('draggable', 'true'));
 
@@ -814,6 +831,7 @@
           pinEl.style.top = `${pin.y}%`;
           pinEl.textContent = displayNo;
 
+          // ピンのフロートドラッグ（カード間を超滑らかに移動 / Ctrl+ドラッグ複製）
           let isDragging = false;
           let startX, startY;
           let moved = false;
@@ -821,14 +839,13 @@
           const onPointerDown = (e) => {
             if (e.target.closest('.pin-popup')) return;
             e.stopPropagation();
-            e.preventDefault(); // 親のHTML5 Drag発火を完全に阻止
+            e.preventDefault();
 
             isDragging = true;
             moved = false;
             startX = e.clientX;
             startY = e.clientY;
 
-            // マウスをキャプチャ
             if (pinEl.setPointerCapture) {
               try { pinEl.setPointerCapture(e.pointerId); } catch(err){}
             }
@@ -838,30 +855,19 @@
               const dist = Math.hypot(ev.clientX - startX, ev.clientY - startY);
               if (dist > 4) {
                 moved = true;
-                pinEl.classList.add('is-dragging');
+                pinEl.classList.add('is-floating');
                 handleAutoScroll(ev.clientY);
 
-                pinEl.style.visibility = 'hidden';
-                const elemBelow = document.elementFromPoint(ev.clientX, ev.clientY);
-                pinEl.style.visibility = 'visible';
-
-                const targetStage = elemBelow ? elemBelow.closest('.image-stage') : null;
-                if (targetStage) {
-                  const rect = targetStage.getBoundingClientRect();
-                  let curX = ((ev.clientX - rect.left) / rect.width) * 100;
-                  let curY = ((ev.clientY - rect.top) / rect.height) * 100;
-                  if (targetStage === imgStage) {
-                    pinEl.style.left = `${Math.max(0, Math.min(100, curX))}%`;
-                    pinEl.style.top = `${Math.max(0, Math.min(100, curY))}%`;
-                  }
-                }
+                // マウス位置に直接吸着して画面全体を自在に移動
+                pinEl.style.left = `${ev.clientX}px`;
+                pinEl.style.top = `${ev.clientY}px`;
               }
             };
 
             const onPointerUp = (ev) => {
               if (!isDragging) return;
               isDragging = false;
-              pinEl.classList.remove('is-dragging');
+              pinEl.classList.remove('is-floating');
               stopAutoScroll();
 
               if (pinEl.releasePointerCapture) {
@@ -872,9 +878,10 @@
               window.removeEventListener('pointerup', onPointerUp);
 
               if (moved) {
-                pinEl.style.visibility = 'hidden';
+                // ドロップ先のパース画像を検出
+                pinEl.style.display = 'none';
                 const elemBelow = document.elementFromPoint(ev.clientX, ev.clientY);
-                pinEl.style.visibility = 'visible';
+                pinEl.style.display = '';
 
                 const targetStage = elemBelow ? elemBelow.closest('.image-stage') : null;
                 if (targetStage) {
@@ -888,7 +895,7 @@
                     const isCopy = ev.ctrlKey || ev.metaKey;
 
                     if (isCopy) {
-                      // 【Ctrl+ドラッグ】複製
+                      // 【Ctrl+ドラッグ】ピンを複製
                       targetSlide.pins.push({
                         id: Date.now() + Math.random(),
                         materialId: pin.materialId,
@@ -896,7 +903,7 @@
                         y: newY
                       });
                     } else {
-                      // 【通常ドラッグ】移動
+                      // 【通常ドラッグ】同一または別パースへ移動
                       if (targetSlideId === slide.id) {
                         pin.x = newX;
                         pin.y = newY;
@@ -914,7 +921,7 @@
                     return;
                   }
                 }
-                renderPages();
+                renderPages(); // パース外に落とした場合は元の位置に戻す
               }
             };
 
