@@ -562,7 +562,6 @@
     margin-bottom: 3px;
   }
 
-  /* 過去物件アーカイブカード */
   .archive-project-card {
     border: 1px solid var(--border);
     border-radius: 6px;
@@ -803,10 +802,70 @@
     return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}:${String(d.getSeconds()).padStart(2,'0')}`;
   };
 
-  const STORAGE_KEY_HISTORY = 'arch_mat_history_v3';
-  const STORAGE_KEY_DRAFT = 'arch_mat_draft_v3';
-  const STORAGE_KEY_TABLE_ARCHIVES = 'arch_mat_completed_tables_v3';
+  const DB_NAME = 'ArchViewer_SafeDB_v4';
+  const DB_VERSION = 1;
+  const STORAGE_KEY_HISTORY = 'arch_mat_history_v4';
+  const STORAGE_KEY_TABLE_ARCHIVES = 'arch_mat_completed_tables_v4';
 
+  // --- IndexedDB 安全ヘルパー（画像保持用） ---
+  function openSafeDB() {
+    return new Promise((resolve) => {
+      try {
+        const req = indexedDB.open(DB_NAME, DB_VERSION);
+        req.onupgradeneeded = (e) => {
+          const db = e.target.result;
+          if (!db.objectStoreNames.contains('project')) {
+            db.createObjectStore('project');
+          }
+        };
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => resolve(null);
+        req.onblocked = () => resolve(null);
+      } catch (e) {
+        resolve(null);
+      }
+    });
+  }
+
+  async function saveProjectToDB(data) {
+    try {
+      const db = await openSafeDB();
+      if (!db) return;
+      const tx = db.transaction('project', 'readwrite');
+      tx.objectStore('project').put(data, 'active_project');
+      const ind = document.getElementById('autoSaveIndicator');
+      if (ind) {
+        ind.textContent = `✓ 自動保存済 (${getTimeStr()})`;
+        ind.style.opacity = '1';
+      }
+    } catch (e) {}
+  }
+
+  async function loadProjectFromDB() {
+    try {
+      const db = await openSafeDB();
+      if (!db) return null;
+      return new Promise((resolve) => {
+        const tx = db.transaction('project', 'readonly');
+        const req = tx.objectStore('project').get('active_project');
+        req.onsuccess = () => resolve(req.result || null);
+        req.onerror = () => resolve(null);
+      });
+    } catch (e) {
+      return null;
+    }
+  }
+
+  async function clearProjectFromDB() {
+    try {
+      const db = await openSafeDB();
+      if (!db) return;
+      const tx = db.transaction('project', 'readwrite');
+      tx.objectStore('project').delete('active_project');
+    } catch (e) {}
+  }
+
+  // --- データ構造 ---
   let projectData = {
     projectName: '新築分譲マンション計画',
     updatedDate: getTodayStr(),
@@ -871,52 +930,19 @@
     }, 2400);
   }
 
-  // --- 自動保存（Auto-Save）＆下書き管理 ---
   function saveCurrentDraft() {
-    try {
-      localStorage.setItem(STORAGE_KEY_DRAFT, JSON.stringify(projectData));
-      const ind = document.getElementById('autoSaveIndicator');
-      if (ind) {
-        ind.textContent = `✓ 自動保存済 (${getTimeStr()})`;
-        ind.style.opacity = '1';
-      }
-    } catch(e) {
-      try {
-        const lightCopy = JSON.parse(JSON.stringify(projectData));
-        lightCopy.slides.forEach(s => { s.imageSrc = null; });
-        localStorage.setItem(STORAGE_KEY_DRAFT, JSON.stringify(lightCopy));
-        const ind = document.getElementById('autoSaveIndicator');
-        if (ind) {
-          ind.textContent = `✓ 保存済 (文字・ピン)`;
-          ind.style.opacity = '1';
-        }
-      } catch(err) {}
-    }
-  }
-
-  function loadCurrentDraft() {
-    try {
-      const draft = localStorage.getItem(STORAGE_KEY_DRAFT);
-      if (draft) {
-        const parsed = JSON.parse(draft);
-        if (parsed && Array.isArray(parsed.slides) && Array.isArray(parsed.materials)) {
-          projectData = parsed;
-          return true;
-        }
-      }
-    } catch(e) {}
-    return false;
+    saveProjectToDB(projectData);
   }
 
   function manualSaveDraft() {
     saveCurrentDraft();
     saveCompletedTableArchive();
-    showToast(`💾 下書き＆材料表を保存しました (${getTimeStr()})`);
+    showToast(`💾 下書き＆パース画像を保存しました (${getTimeStr()})`);
   }
 
-  function resetProjectDraft() {
+  async function resetProjectDraft() {
     if (confirm("現在の作業下書きを消去し、真っ新な状態から新規作成しますか？\n（※過去の材料表アーカイブや履歴は保持されます）")) {
-      try { localStorage.removeItem(STORAGE_KEY_DRAFT); } catch(e) {}
+      await clearProjectFromDB();
       projectData = {
         projectName: '新築分譲マンション計画',
         updatedDate: getTodayStr(),
@@ -947,7 +973,6 @@
     let archives = getCompletedTableArchives();
     const projName = projectData.projectName || '未設定物件';
 
-    // 同名物件のアーカイブを更新
     archives = archives.filter(a => a.projectName !== projName);
     archives.unshift({
       id: 'tbl_' + Date.now(),
@@ -1091,21 +1116,29 @@
   }
 
   // --- 初期化 ---
-  window.addEventListener('DOMContentLoaded', () => {
-    const hasDraft = loadCurrentDraft();
-    document.getElementById('projectNameInput').value = projectData.projectName || '新築分譲マンション計画';
-    document.getElementById('projectDateInput').value = projectData.updatedDate || getTodayStr();
-
-    if (!hasDraft || !projectData.slides || projectData.slides.length === 0) {
-      projectData.slides = [{
+  window.addEventListener('DOMContentLoaded', async () => {
+    // 1. 初期描画
+    if (projectData.slides.length === 0) {
+      projectData.slides.push({
         id: Date.now() + Math.random(),
         title: "外観・アプローチ パース",
         imageSrc: null,
         pins: []
-      }];
+      });
     }
+    document.getElementById('projectNameInput').value = projectData.projectName;
+    document.getElementById('projectDateInput').value = projectData.updatedDate;
     renderPages();
     setupLassoSelection();
+
+    // 2. IndexedDBから安全にパース画像・下書きを復元
+    const saved = await loadProjectFromDB();
+    if (saved && saved.slides && saved.slides.length > 0) {
+      projectData = saved;
+      document.getElementById('projectNameInput').value = projectData.projectName || '新築分譲マンション計画';
+      document.getElementById('projectDateInput').value = projectData.updatedDate || getTodayStr();
+      renderPages();
+    }
   });
 
   window.addEventListener('keydown', (e) => {
@@ -1270,7 +1303,7 @@
           projectData.updatedDate = getTodayStr();
           document.getElementById('projectDateInput').value = projectData.updatedDate;
           renderPages();
-          showToast(`📷 ${files.length} 枚のパース画像を追加しました！`);
+          showToast(`📷 ${files.length} 枚のパース画像を追加・保存しました！`);
         }
       };
       reader.readAsDataURL(file);
