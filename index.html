@@ -55,6 +55,22 @@
   .btn-secondary:hover { background: #475569; }
   .btn-success { background: #059669; }
   .btn-success:hover { background: #047857; }
+  .btn-undo {
+    background: #f1f5f9;
+    color: #334155;
+    border: 1px solid #cbd5e1;
+  }
+  .btn-undo:hover {
+    background: #e2e8f0;
+    color: #0f172a;
+  }
+  .btn-jump {
+    background: #475569;
+    color: #fff;
+  }
+  .btn-jump:hover {
+    background: #334155;
+  }
   .btn-save-slot {
     background: linear-gradient(135deg, #4f46e5 0%, #3b82f6 100%);
     color: #fff;
@@ -799,6 +815,9 @@
 <body>
 
 <div class="toolbar">
+  <!-- Undo（戻る）ボタン -->
+  <button class="btn btn-undo" onclick="undo()" title="1つ前の操作に戻す (Ctrl + Z)">↩ 戻る (Ctrl+Z)</button>
+
   <label class="btn file-label">
     ＋ パース画像を一括追加
     <input type="file" id="batchImageInput" accept="image/*" multiple>
@@ -814,6 +833,9 @@
     <span>編集日:</span>
     <input type="text" class="meta-input" id="projectDateInput" style="width: 80px;" onchange="updateProjectDate(this.value)">
   </div>
+
+  <!-- 材料表ジャンプボタン -->
+  <button class="btn btn-jump" onclick="scrollToMasterTable()" title="ページ最下部の共通材料表まで一気に移動">📋 材料表へ移動</button>
 
   <button class="btn btn-save-slot" onclick="openSaveSlotModal()" title="ゲームのセーブデータ画面のように一覧から選択・保存・読込">🎮 セーブ / ロード画面</button>
   <button class="btn btn-outline" style="background:#f0fdf4; color:#166534; border-color:#bbf7d0;" onclick="openLibraryModal()" title="過去に使った全材料を個別検索">📚 材料ライブラリ検索</button>
@@ -1026,13 +1048,13 @@
         <ul class="help-list">
           <li><strong>セーブ/ロード画面:</strong> 「🎮 セーブ / ロード画面」からゲームのスロットのように過去物件の選択・保存・復元ができます。</li>
           <li><strong>材料を個別抽出:</strong> スロット内の「🔍 材料を選んで抽出」で欲しい材料だけにチェックを入れて取り込めます。</li>
-          <li><strong>表の全コピー:</strong> 「📋 表を全コピー」でExcelやスプレッドシートに一発貼り付けできます。</li>
+          <li><strong>一括ジャンプ＆戻る:</strong> 「📋 材料表へ移動」で最下部に即座に移動、「↩ 戻る (<span class="help-key">Ctrl+Z</span>)」で誤操作を取り消せます。</li>
         </ul>
       </div>
     </div>
 
     <div style="background:#eff6ff; border:1px solid #bfdbfe; border-radius:6px; padding:10px 14px; font-size:12px; color:#1e40af; display:flex; justify-content:space-between; align-items:center;">
-      <span>💾 <strong>自動保存＆ショートカット:</strong> パース画像も含め自動保存されます。即時手動保存は <span class="help-key">Ctrl</span> + <span class="help-key">S</span> です。</span>
+      <span>💾 <strong>自動保存＆ショートカット:</strong> 作業内容は自動保存されます。手動保存は <span class="help-key">Ctrl</span> + <span class="help-key">S</span>、元に戻すは <span class="help-key">Ctrl</span> + <span class="help-key">Z</span> です。</span>
     </div>
 
     <div class="modal-actions" style="margin-top:14px;">
@@ -1055,6 +1077,50 @@
   const DB_NAME = 'ArchViewer_GameSlots_DB_v1';
   const DB_VERSION = 1;
   const STORAGE_KEY_HISTORY = 'arch_mat_history_v6';
+
+  // --- Undo（元に戻す）履歴スタック ---
+  const undoStack = [];
+  const MAX_UNDO_COUNT = 30;
+
+  function pushUndoState() {
+    if (!projectData) return;
+    try {
+      const snapshot = JSON.stringify(projectData);
+      undoStack.push(snapshot);
+      if (undoStack.length > MAX_UNDO_COUNT) {
+        undoStack.shift();
+      }
+    } catch(e) {}
+  }
+
+  function undo() {
+    if (undoStack.length === 0) {
+      showToast("これ以上戻せる履歴がありません");
+      return;
+    }
+    try {
+      const previousStateStr = undoStack.pop();
+      const previousState = JSON.parse(previousStateStr);
+      if (previousState && Array.isArray(previousState.slides)) {
+        projectData = previousState;
+        document.getElementById('projectNameInput').value = projectData.projectName || '新築分譲マンション計画';
+        document.getElementById('projectDateInput').value = projectData.updatedDate || getTodayStr();
+        renderPages(false); // 描画（Undoスタックの二重追加を避ける）
+        saveCurrentDraft();
+        showToast("↩ 1つ前の操作に戻しました");
+      }
+    } catch(e) {
+      showToast("元に戻す処理に失敗しました");
+    }
+  }
+
+  // 材料表へのスムーズスクロールジャンプ
+  function scrollToMasterTable() {
+    const masterCard = document.querySelector('.master-card');
+    if (masterCard) {
+      masterCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }
 
   // --- IndexedDB 大容量安全ストレージ（セーブスロット・画像完全保持） ---
   function openSafeDB() {
@@ -1237,6 +1303,7 @@
 
   async function resetProjectDraft() {
     if (confirm("現在の作業下書きを消去し、真っ新な状態から新規作成しますか？\n（※過去のセーブデータスロットや履歴は保持されます）")) {
+      pushUndoState();
       await clearProjectFromDB();
       projectData = {
         projectName: '新築分譲マンション計画',
@@ -1251,7 +1318,7 @@
       };
       document.getElementById('projectNameInput').value = projectData.projectName;
       document.getElementById('projectDateInput').value = projectData.updatedDate;
-      renderPages();
+      renderPages(false);
       showToast("🗑️ 下書きをクリアしました");
     }
   }
@@ -1270,11 +1337,12 @@
     if (!file) return;
     const reader = new FileReader();
     reader.onload = (ev) => {
+      pushUndoState();
       const slide = projectData.slides.find(s => String(s.id) === String(slideId));
       if (slide) {
         slide.imageSrc = ev.target.result;
         saveCurrentDraft();
-        renderPages();
+        renderPages(false);
         showToast(`パース画像を差し替えました`);
       }
     };
@@ -1390,6 +1458,7 @@
 
     if (!confirm(`セーブデータ「${slot.projectName}」をロードしますか？\n（現在の作業内容は切り替わります）`)) return;
 
+    pushUndoState();
     projectData.projectName = slot.projectName;
     projectData.updatedDate = slot.updatedDate || getTodayStr();
     projectData.materials = JSON.parse(JSON.stringify(slot.materials || []));
@@ -1400,7 +1469,7 @@
 
     closeSaveSlotModal();
     saveCurrentDraft();
-    renderPages();
+    renderPages(false);
     showToast(`🎮「${slot.projectName}」をロードしました！`);
   }
 
@@ -1412,6 +1481,7 @@
     const totalCount = slot.materials.length;
     if (overwrite) {
       if (!confirm(`現在の材料表を「${slot.projectName}」の全材料（${totalCount}件すべて）で上書き反映しますか？`)) return;
+      pushUndoState();
       projectData.materials = [];
       slot.materials.forEach(m => {
         const cloned = JSON.parse(JSON.stringify(m));
@@ -1420,6 +1490,7 @@
         saveToMaterialHistory(cloned);
       });
     } else {
+      pushUndoState();
       slot.materials.forEach(m => {
         const cloned = JSON.parse(JSON.stringify(m));
         cloned.id = 'mat_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6);
@@ -1431,7 +1502,7 @@
 
     closeSaveSlotModal();
     saveCurrentDraft();
-    renderPages();
+    renderPages(false);
     showToast(`📋「${slot.projectName}」の全材料（${totalCount}件）を反映しました！`);
   }
 
@@ -1486,6 +1557,7 @@
       alert("抽出したい材料にチェックを入れてください。");
       return;
     }
+    pushUndoState();
     checks.forEach(chk => {
       const idx = parseInt(chk.dataset.idx, 10);
       const m = extractTargetSlotMats[idx];
@@ -1501,7 +1573,7 @@
     closeExtractMatModal();
     closeSaveSlotModal();
     saveCurrentDraft();
-    renderPages();
+    renderPages(false);
     showToast(`選択した ${checks.length} 件の材料を現在の材料表に追加しました！`);
   }
 
@@ -1597,7 +1669,7 @@
     }
     document.getElementById('projectNameInput').value = projectData.projectName;
     document.getElementById('projectDateInput').value = projectData.updatedDate;
-    renderPages();
+    renderPages(false);
     setupLassoSelection();
 
     const saved = await loadProjectFromDB();
@@ -1605,11 +1677,19 @@
       projectData = saved;
       document.getElementById('projectNameInput').value = projectData.projectName || '新築分譲マンション計画';
       document.getElementById('projectDateInput').value = projectData.updatedDate || getTodayStr();
-      renderPages();
+      renderPages(false);
     }
   });
 
   window.addEventListener('keydown', (e) => {
+    // Ctrl + Z / Cmd + Z で元に戻す
+    const isInputActive = ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName);
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && !e.shiftKey && !isInputActive) {
+      e.preventDefault();
+      undo();
+      return;
+    }
+
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
       e.preventDefault();
       manualSaveDraft();
@@ -1626,7 +1706,6 @@
       return;
     }
 
-    const isInputActive = ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName);
     if ((e.key === 'Delete' || e.key === 'Backspace') && !isInputActive) {
       if (selectedSlideIds.size > 0) {
         e.preventDefault();
@@ -1649,13 +1728,15 @@
   }
 
   function updateProjectName(val) {
+    pushUndoState();
     projectData.projectName = val || '未設定物件';
     saveCurrentDraft();
   }
 
   function updateProjectDate(val) {
+    pushUndoState();
     projectData.updatedDate = val || getTodayStr();
-    renderPages();
+    renderPages(false);
   }
 
   function clearSelection() {
@@ -1686,9 +1767,10 @@
     const count = selectedSlideIds.size;
     if (count === 0) return;
     if (confirm(`選択中の ${count} 件のパース画面を削除しますか？\n（※共通材料データ自体は保持されます）`)) {
+      pushUndoState();
       projectData.slides = projectData.slides.filter(s => !selectedSlideIds.has(s.id));
       selectedSlideIds.clear();
-      renderPages();
+      renderPages(false);
     }
   }
 
@@ -1759,6 +1841,7 @@
     const files = Array.from(e.target.files);
     if (!files.length) return;
 
+    pushUndoState();
     let loadedCount = 0;
     files.forEach((file) => {
       const reader = new FileReader();
@@ -1774,7 +1857,7 @@
         if (loadedCount === files.length) {
           projectData.updatedDate = getTodayStr();
           document.getElementById('projectDateInput').value = projectData.updatedDate;
-          renderPages();
+          renderPages(false);
           showToast(`📷 ${files.length} 枚のパース画像を追加・保存しました！`);
         }
       };
@@ -1784,6 +1867,7 @@
   });
 
   function addEmptySlide(defaultTitle = "") {
+    pushUndoState();
     const slideNumber = projectData.slides.length + 1;
     projectData.slides.push({
       id: Date.now() + Math.random(),
@@ -1791,12 +1875,13 @@
       imageSrc: null,
       pins: []
     });
-    renderPages();
+    renderPages(false);
   }
 
   function duplicateSlide(slideId) {
     const sIndex = projectData.slides.findIndex(s => String(s.id) === String(slideId));
     if (sIndex === -1) return;
+    pushUndoState();
     const src = projectData.slides[sIndex];
     const cloned = JSON.parse(JSON.stringify(src));
     cloned.id = Date.now() + Math.random();
@@ -1804,29 +1889,32 @@
     cloned.pins.forEach(p => { p.id = Date.now() + Math.random(); });
     
     projectData.slides.splice(sIndex + 1, 0, cloned);
-    renderPages();
+    renderPages(false);
     showToast("パースを複製しました");
   }
 
   function deleteSlide(slideId) {
     if (confirm("このパース画面を削除しますか？（※材料データ自体は保持されます）")) {
+      pushUndoState();
       projectData.slides = projectData.slides.filter(s => String(s.id) !== String(slideId));
       selectedSlideIds.delete(slideId);
-      renderPages();
+      renderPages(false);
     }
   }
 
   function moveSlide(index, direction) {
     const targetIndex = index + direction;
     if (targetIndex < 0 || targetIndex >= projectData.slides.length) return;
+    pushUndoState();
     const item = projectData.slides.splice(index, 1)[0];
     projectData.slides.splice(targetIndex, 0, item);
-    renderPages();
+    renderPages(false);
   }
 
   function updateSlideTitle(slideId, newTitle) {
     const s = projectData.slides.find(item => String(item.id) === String(slideId));
     if (s) {
+      pushUndoState();
       s.title = newTitle;
       saveCurrentDraft();
     }
@@ -1835,14 +1923,16 @@
   function updateMaterialNo(matId, val) {
     const mat = projectData.materials.find(m => String(m.id) === String(matId));
     if (mat) {
+      pushUndoState();
       mat.customNo = val;
-      renderPages();
+      renderPages(false);
     }
   }
 
   function duplicateMaterial(matId) {
     const mIndex = projectData.materials.findIndex(m => String(m.id) === String(matId));
     if (mIndex === -1) return;
+    pushUndoState();
     const src = projectData.materials[mIndex];
     const cloned = JSON.parse(JSON.stringify(src));
     cloned.id = 'mat_' + Date.now() + Math.random().toString(36).substring(2, 6);
@@ -1850,25 +1940,29 @@
     
     projectData.materials.splice(mIndex + 1, 0, cloned);
     saveToMaterialHistory(cloned);
-    renderPages();
+    saveToActiveSlotSilently();
+    renderPages(false);
     showToast("材料を複製しました");
   }
 
   function deleteMaterial(matId) {
     if (confirm("この材料を削除しますか？\n（配置されているすべてのパース上のピンも削除されます）")) {
+      pushUndoState();
       projectData.materials = projectData.materials.filter(m => String(m.id) !== String(matId));
       projectData.slides.forEach(s => {
         s.pins = s.pins.filter(p => String(p.materialId) !== String(matId));
       });
-      renderPages();
+      saveToActiveSlotSilently();
+      renderPages(false);
     }
   }
 
   function removePinFromSlide(slideId, pinId) {
     const slide = projectData.slides.find(s => String(s.id) === String(slideId));
     if (slide) {
+      pushUndoState();
       slide.pins = slide.pins.filter(p => String(p.id) !== String(pinId));
-      renderPages();
+      renderPages(false);
     }
   }
 
@@ -1936,6 +2030,7 @@
         const loaded = JSON.parse(event.target.result);
         const matsToImport = loaded.materials || (Array.isArray(loaded) ? loaded : []);
         if (matsToImport.length > 0) {
+          pushUndoState();
           matsToImport.forEach(m => {
             const newId = 'mat_' + Date.now() + Math.random().toString(36).substring(2, 6);
             const newMat = {
@@ -1950,7 +2045,7 @@
             projectData.materials.push(newMat);
             saveToMaterialHistory(newMat);
           });
-          renderPages();
+          renderPages(false);
           showToast(`📥 ${matsToImport.length} 件の材料マスターを追加しました！`);
         } else {
           alert("有効な材料データが見つかりませんでした。");
@@ -2069,6 +2164,7 @@
     const history = getMaterialHistory();
     const h = history.find(item => String(item.id) === String(historyId));
     if (h) {
+      pushUndoState();
       projectData.materials.push({
         id: 'mat_' + Date.now() + Math.random().toString(36).substring(2, 6),
         customNo: String(projectData.materials.length + 1),
@@ -2078,7 +2174,7 @@
         url: h.url,
         materialImg: h.materialImg
       });
-      renderPages();
+      renderPages(false);
       showToast(`「${h.part}」を材料表に追加しました！`);
     }
   }
@@ -2090,6 +2186,7 @@
       alert("追加したい材料にチェックを入れてください。");
       return;
     }
+    pushUndoState();
     checks.forEach(chk => {
       const hId = chk.dataset.id;
       const h = history.find(item => String(item.id) === String(hId));
@@ -2106,12 +2203,13 @@
       }
     });
     closeLibraryModal();
-    renderPages();
+    renderPages(false);
     showToast(`選択した ${checks.length} 件の材料を追加しました！`);
   }
 
   // --- メイン画面描画 ---
-  function renderPages() {
+  function renderPages(saveUndo = false) {
+    if (saveUndo) pushUndoState();
     const container = document.getElementById('pagesContainer');
     if (!container) return;
     container.innerHTML = "";
@@ -2180,6 +2278,7 @@
         let targetIndex = isTop ? sIndex : sIndex + 1;
         const isCopy = e.ctrlKey || e.metaKey;
 
+        pushUndoState();
         if (isCopy) {
           const src = projectData.slides[fromIndex];
           const cloned = JSON.parse(JSON.stringify(src));
@@ -2193,7 +2292,7 @@
           if (fromIndex < targetIndex) targetIndex--;
           projectData.slides.splice(targetIndex, 0, item);
         }
-        renderPages();
+        renderPages(false);
       });
 
       header.innerHTML = `
@@ -2237,13 +2336,14 @@
           const y = ((e.clientY - rect.top) / rect.height) * 100;
 
           if (copyingMaterialId) {
+            pushUndoState();
             slide.pins.push({
               id: Date.now() + Math.random(),
               materialId: copyingMaterialId,
               x: Math.max(0, Math.min(100, x)),
               y: Math.max(0, Math.min(100, y))
             });
-            renderPages();
+            renderPages(false);
           } else {
             openAddPinModal(slide.id, x, y);
           }
@@ -2336,6 +2436,7 @@
                   const targetSlideId = targetStage.dataset.slideId;
                   const targetSlide = projectData.slides.find(s => String(s.id) === String(targetSlideId));
                   if (targetSlide) {
+                    pushUndoState();
                     const rect = targetStage.getBoundingClientRect();
                     const newX = Math.max(0, Math.min(100, ((ev.clientX - rect.left) / rect.width) * 100));
                     const newY = Math.max(0, Math.min(100, ((ev.clientY - rect.top) / rect.height) * 100));
@@ -2363,11 +2464,11 @@
                         });
                       }
                     }
-                    renderPages();
+                    renderPages(false);
                     return;
                   }
                 }
-                renderPages();
+                renderPages(false);
               }
             };
 
@@ -2421,8 +2522,9 @@
             if (f) {
               const r = new FileReader();
               r.onload = (ev) => {
+                pushUndoState();
                 slide.imageSrc = ev.target.result;
-                renderPages();
+                renderPages(false);
               };
               r.readAsDataURL(f);
             }
@@ -2529,13 +2631,15 @@
       });
       row.addEventListener('drop', (e) => {
         e.preventDefault();
+        stopAutoScroll();
         row.classList.remove('row-drag-over');
         const fromIdx = parseInt(e.dataTransfer.getData('text/plain'), 10);
         const toIdx = parseInt(row.dataset.mIndex, 10);
         if (fromIdx !== toIdx && !isNaN(fromIdx)) {
+          pushUndoState();
           const moved = projectData.materials.splice(fromIdx, 1)[0];
           projectData.materials.splice(toIdx, 0, moved);
-          renderPages();
+          renderPages(false);
         }
       });
     });
@@ -2668,6 +2772,7 @@
   }
 
   function saveModalData() {
+    pushUndoState();
     const customNo = document.getElementById('inputCustomNo').value.trim();
     const part = document.getElementById('inputPart').value.trim() || '未設定';
     const specs = document.getElementById('inputSpecs').value || '';
@@ -2733,7 +2838,7 @@
     }
 
     closeModal();
-    renderPages();
+    renderPages(false);
     showToast("材料仕様を保存しました");
   }
 
@@ -2753,6 +2858,7 @@
         try {
           const loaded = JSON.parse(event.target.result);
           if (loaded.slides) {
+            pushUndoState();
             projectData = loaded;
             if (!projectData.projectName) projectData.projectName = '読込プロジェクト';
             if (!projectData.updatedDate) projectData.updatedDate = getTodayStr();
@@ -2763,7 +2869,8 @@
             if (projectData.materials) {
               projectData.materials.forEach(m => saveToMaterialHistory(m));
             }
-            renderPages();
+            saveToActiveSlotSilently();
+            renderPages(false);
             showToast("📥 プロジェクトデータを読み込みました！");
           }
         } catch(err) { alert('JSONの読み込みに失敗しました。'); }
@@ -2813,7 +2920,7 @@
   @media print {
     body { background: #fff !important; padding: 0 !important; }
     .toolbar { display: none !important; }
-    .pages-container { max-width: 100% !important; margin: 0 !important; padding: 0 !important; }
+    .pages-container { max-width: 100% !important; margin: 0 !important; padding: 0 !important; gap: 0 !important; }
     .page-card {
       border: none !important;
       box-shadow: none !important;
