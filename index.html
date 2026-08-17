@@ -55,6 +55,8 @@
   .btn-secondary:hover { background: #475569; }
   .btn-success { background: #059669; }
   .btn-success:hover { background: #047857; }
+  .btn-save { background: #2563eb; }
+  .btn-save:hover { background: #1d4ed8; }
   .btn-print { background: #0284c7; }
   .btn-print:hover { background: #0369a1; }
   .btn-outline {
@@ -97,6 +99,32 @@
     align-items: center;
     gap: 3px;
     margin-right: 4px;
+  }
+
+  /* トースト通知 */
+  .toast-notification {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    background: #0f172a;
+    color: #fff;
+    padding: 12px 20px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: bold;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.3);
+    z-index: 100000;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transform: translateY(100px);
+    opacity: 0;
+    transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.25s;
+    border-left: 4px solid #10b981;
+  }
+  .toast-notification.show {
+    transform: translateY(0);
+    opacity: 1;
   }
 
   .copy-banner {
@@ -535,11 +563,24 @@
     margin-bottom: 3px;
   }
 
-  /* 印刷設定（A3横） */
+  /* 過去物件アーカイブ一覧スタイル */
+  .archive-project-card {
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 14px;
+    margin-bottom: 10px;
+    background: #fff;
+    transition: 0.15s;
+  }
+  .archive-project-card:hover {
+    border-color: var(--primary);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+  }
+
   @page { size: A3 landscape; margin: 10mm; }
   @media print {
     body { background: #fff; padding: 0; }
-    .toolbar, .copy-banner, .modal-overlay, .card-actions, .table-btn-group, .row-drag-handle, .popup-del-pin-btn, th.col-handle, td.col-handle, th:last-child, td:last-child, .btn-add-mat, .drag-hint, .selection-box {
+    .toolbar, .copy-banner, .modal-overlay, .card-actions, .table-btn-group, .row-drag-handle, .popup-del-pin-btn, th.col-handle, td.col-handle, th:last-child, td:last-child, .btn-add-mat, .drag-hint, .selection-box, .toast-notification {
       display: none !important;
     }
     .pages-container { max-width: 100%; margin: 0; padding: 0; gap: 0; }
@@ -570,7 +611,6 @@
     .pin-popup { display: none !important; }
     .no-input { border: none !important; background: transparent !important; padding: 0 !important; }
 
-    /* 材料表のみ印刷時の制御 */
     body.print-table-only .page-card:not(.master-card) {
       display: none !important;
     }
@@ -600,10 +640,11 @@
     <input type="text" class="meta-input" id="projectDateInput" style="width: 80px;" onchange="updateProjectDate(this.value)">
   </div>
 
-  <button class="btn btn-outline" style="background:#f0fdf4; color:#166534; border-color:#bbf7d0;" onclick="openLibraryModal()" title="過去の物件で使った全材料を横断検索">📚 材料ライブラリ・履歴検索</button>
+  <button class="btn btn-outline" style="background:#f0fdf4; color:#166534; border-color:#bbf7d0;" onclick="openLibraryModal()" title="過去の物件で使った全材料を横断検索">📚 材料ライブラリ検索</button>
 
   <div style="margin-left: auto; display: flex; gap: 6px; align-items: center; flex-wrap: wrap;">
-    <div class="auto-save-indicator" id="autoSaveIndicator">✓ 下書き保存済</div>
+    <button class="btn btn-save" onclick="manualSaveDraft()" title="現在の作業状態を直ちに保存 (Ctrl + S)">💾 下書き保存 (Ctrl+S)</button>
+    <div class="auto-save-indicator" id="autoSaveIndicator">✓ 自動保存済</div>
     <button class="btn btn-success" onclick="exportReadOnlyHTML()">クライアント用 閲覧HTML</button>
     <button class="btn btn-secondary" onclick="exportProjectJSON()">データ保存 (JSON)</button>
     <label class="btn btn-secondary file-label">
@@ -616,6 +657,12 @@
   </div>
 </div>
 
+<!-- トースト通知 -->
+<div class="toast-notification" id="toastNotification">
+  <span id="toastMessage">💾 下書きを一時保存しました</span>
+</div>
+
+<!-- コピー待機バー -->
 <div class="copy-banner" id="copyBanner">
   <div id="copyBannerText">📋 材料をコピー中: 貼り付けたいパースの任意の位置をクリックしてください</div>
   <button class="btn btn-secondary" style="padding:4px 10px; font-size:11px;" onclick="cancelCopyMode()">コピー終了 (Esc)</button>
@@ -721,14 +768,36 @@
   </div>
 </div>
 
+<!-- モーダル（過去物件の完成材料表を丸ごと読込） -->
+<div class="modal-overlay" id="projectArchiveModalOverlay">
+  <div class="modal" style="width: 780px;">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+      <h3 style="margin:0;">📂 過去物件の完成材料表を丸ごと読込</h3>
+      <span style="font-size:12px; color:#64748b;">過去に保存された物件の材料表セットをそのまま反映できます</span>
+    </div>
+
+    <div class="history-list-container" id="projectArchiveListContainer" style="max-height: 420px;"></div>
+
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeProjectArchiveModal()">閉じる</button>
+    </div>
+  </div>
+</div>
+
 <script>
   const getTodayStr = () => {
     const d = new Date();
     return `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')}`;
   };
 
+  const getTimeStr = () => {
+    const d = new Date();
+    return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}:${String(d.getSeconds()).padStart(2,'0')}`;
+  };
+
   const STORAGE_KEY_HISTORY = 'arch_material_history_lib_v2';
   const STORAGE_KEY_DRAFT = 'arch_material_current_draft_v2';
+  const STORAGE_KEY_PROJECT_ARCHIVES = 'arch_material_project_archives_v1';
 
   let projectData = {
     projectName: '新築分譲マンション計画',
@@ -745,13 +814,32 @@
   let selectedSlideIds = new Set();
   let isLibraryForSingleApply = false;
 
-  // 下書きの自動保存＆読み込み
+  // トースト通知表示
+  function showToast(msg) {
+    const toast = document.getElementById('toastNotification');
+    const msgEl = document.getElementById('toastMessage');
+    if (!toast || !msgEl) return;
+    msgEl.textContent = msg;
+    toast.classList.add('show');
+    setTimeout(() => {
+      toast.classList.remove('show');
+    }, 2400);
+  }
+
+  // 手動保存（Ctrl+S / ボタンクリック）
+  function manualSaveDraft() {
+    saveCurrentDraft();
+    saveCurrentProjectArchive();
+    showToast(`💾 下書きを一時保存しました (${getTimeStr()})`);
+  }
+
+  // 自動保存
   function saveCurrentDraft() {
     try {
       localStorage.setItem(STORAGE_KEY_DRAFT, JSON.stringify(projectData));
       const ind = document.getElementById('autoSaveIndicator');
       if (ind) {
-        ind.textContent = '✓ 下書き自動保存済';
+        ind.textContent = `✓ 自動保存済 (${getTimeStr()})`;
         ind.style.opacity = '1';
       }
     } catch(e) {
@@ -773,8 +861,34 @@
     return false;
   }
 
+  // 過去物件アーカイブ（材料表セット一式）の保存
+  function getProjectArchives() {
+    try {
+      return JSON.parse(localStorage.getItem(STORAGE_KEY_PROJECT_ARCHIVES)) || [];
+    } catch(e) { return []; }
+  }
+
+  function saveCurrentProjectArchive() {
+    if (!projectData.materials || projectData.materials.length === 0) return;
+    let archives = getProjectArchives();
+    const projName = projectData.projectName || '未設定物件';
+
+    // 同名物件のアーカイブを更新（最新順）
+    archives = archives.filter(a => a.projectName !== projName);
+    archives.unshift({
+      id: 'proj_' + Date.now(),
+      projectName: projName,
+      updatedDate: projectData.updatedDate || getTodayStr(),
+      savedAt: Date.now(),
+      materials: JSON.parse(JSON.stringify(projectData.materials))
+    });
+
+    if (archives.length > 50) archives = archives.slice(0, 50);
+    localStorage.setItem(STORAGE_KEY_PROJECT_ARCHIVES, JSON.stringify(archives));
+  }
+
   function resetProjectDraft() {
-    if (confirm("現在の作業下書きを消去し、真っ新な状態から新規作成しますか？\n（※過去の材料ライブラリ履歴は消えません）")) {
+    if (confirm("現在の作業下書きを消去し、真っ新な状態から新規作成しますか？\n（※過去の材料ライブラリ履歴や物件アーカイブは保持されます）")) {
       localStorage.removeItem(STORAGE_KEY_DRAFT);
       projectData = {
         projectName: '新築分譲マンション計画',
@@ -785,6 +899,7 @@
       document.getElementById('projectNameInput').value = projectData.projectName;
       document.getElementById('projectDateInput').value = projectData.updatedDate;
       addEmptySlide("外観・アプローチ パース");
+      showToast("🗑️ 下書きをクリアしました");
     }
   }
 
@@ -867,11 +982,20 @@
     setupLassoSelection();
   });
 
+  // キーボードショートカット（Ctrl+S で手動保存、Deleteで削除、Escで解除）
   window.addEventListener('keydown', (e) => {
+    // Ctrl + S または Cmd + S で手動一時保存
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
+      e.preventDefault();
+      manualSaveDraft();
+      return;
+    }
+
     if (e.key === 'Escape') {
       cancelCopyMode();
       clearSelection();
       closeLibraryModal();
+      closeProjectArchiveModal();
       return;
     }
 
@@ -884,7 +1008,7 @@
     }
   });
 
-  // 印刷関数（全ページ印刷 / 材料表のみ印刷）
+  // 印刷関数
   function printAllPages() {
     document.body.classList.remove('print-table-only');
     window.print();
@@ -901,6 +1025,7 @@
   function updateProjectName(val) {
     projectData.projectName = val || '未設定物件';
     saveCurrentDraft();
+    saveCurrentProjectArchive();
   }
 
   function updateProjectDate(val) {
@@ -1096,6 +1221,7 @@
     
     projectData.materials.splice(mIndex + 1, 0, cloned);
     saveToMaterialHistory(cloned);
+    saveCurrentProjectArchive();
     renderPages();
   }
 
@@ -1105,6 +1231,7 @@
       projectData.slides.forEach(s => {
         s.pins = s.pins.filter(p => p.materialId !== matId);
       });
+      saveCurrentProjectArchive();
       renderPages();
     }
   }
@@ -1148,7 +1275,7 @@
     });
 
     navigator.clipboard.writeText(tsv).then(() => {
-      alert("📋 材料表の内容をクリップボードにコピーしました！\nExcelや別ツールのテキスト欄にそのまま貼り付けできます。");
+      showToast("📋 材料表の内容をExcel用に全コピーしました！");
     }).catch(() => {
       alert("クリップボードへのコピーに失敗しました。");
     });
@@ -1195,8 +1322,9 @@
             projectData.materials.push(newMat);
             saveToMaterialHistory(newMat);
           });
+          saveCurrentProjectArchive();
           renderPages();
-          alert(`📥 ${matsToImport.length} 件の材料マスターを現在の材料表に追加しました！`);
+          showToast(`📥 ${matsToImport.length} 件の材料マスターを追加しました！`);
         } else {
           alert("有効な材料データが見つかりませんでした。");
         }
@@ -1206,6 +1334,76 @@
     e.target.value = '';
   }
 
+  // --- 過去物件の材料表丸ごと読み込みモーダル ---
+  function openProjectArchiveModal() {
+    const archives = getProjectArchives();
+    const container = document.getElementById('projectArchiveListContainer');
+
+    if (archives.length === 0) {
+      container.innerHTML = '<div style="padding:40px; text-align:center; color:#94a3b8;">まだ過去物件の材料表アーカイブがありません。<br>物件を編集・保存すると自動でここに蓄積されます。</div>';
+    } else {
+      let html = '';
+      archives.forEach((arch, idx) => {
+        const matCount = arch.materials ? arch.materials.length : 0;
+        const previewMats = (arch.materials || []).slice(0, 3).map(m => `■${m.part}`).join('、');
+        
+        html += `
+          <div class="archive-project-card">
+            <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:8px;">
+              <div>
+                <strong style="font-size:14px; color:#0f172a;">🏢 ${arch.projectName}</strong>
+                <span style="font-size:11px; color:#64748b; margin-left:8px;">更新日: ${arch.updatedDate} (${matCount}点の材料)</span>
+              </div>
+              <div style="display:flex; gap:6px;">
+                <button class="btn btn-outline" style="font-size:11px; padding:4px 8px;" onclick="applyProjectArchive(${idx}, false)">現在の表に追加</button>
+                <button class="btn btn-success" style="font-size:11px; padding:4px 8px;" onclick="applyProjectArchive(${idx}, true)">この物件で上書き</button>
+              </div>
+            </div>
+            <div style="font-size:11.5px; color:#475569; background:#f8fafc; padding:8px 10px; border-radius:4px;">
+              <strong>材料例:</strong> ${previewMats}${matCount > 3 ? ' ...ほか' : ''}
+            </div>
+          </div>
+        `;
+      });
+      container.innerHTML = html;
+    }
+    document.getElementById('projectArchiveModalOverlay').style.display = 'flex';
+  }
+
+  function closeProjectArchiveModal() {
+    document.getElementById('projectArchiveModalOverlay').style.display = 'none';
+  }
+
+  function applyProjectArchive(archiveIndex, overwrite = false) {
+    const archives = getProjectArchives();
+    const arch = archives[archiveIndex];
+    if (!arch || !arch.materials) return;
+
+    if (overwrite) {
+      if (!confirm(`現在の材料表を「${arch.projectName}」の材料表（${arch.materials.length}点）で丸ごと上書きしますか？`)) return;
+      projectData.materials = JSON.parse(JSON.stringify(arch.materials));
+      // ピンの参照IDを維持・更新
+      projectData.materials.forEach(m => {
+        m.id = 'mat_' + Date.now() + Math.random().toString(36).substring(2, 6);
+        saveToMaterialHistory(m);
+      });
+    } else {
+      arch.materials.forEach(m => {
+        const cloned = JSON.parse(JSON.stringify(m));
+        cloned.id = 'mat_' + Date.now() + Math.random().toString(36).substring(2, 6);
+        cloned.customNo = String(projectData.materials.length + 1);
+        projectData.materials.push(cloned);
+        saveToMaterialHistory(cloned);
+      });
+    }
+
+    closeProjectArchiveModal();
+    saveCurrentProjectArchive();
+    renderPages();
+    showToast(`📂「${arch.projectName}」の材料表を反映しました！`);
+  }
+
+  // --- 材料ライブラリ・検索モーダル制御 ---
   function openLibraryModal(singleApplyMode = false) {
     isLibraryForSingleApply = singleApplyMode;
     const history = getMaterialHistory();
@@ -1322,8 +1520,9 @@
         url: h.url,
         materialImg: h.materialImg
       });
+      saveCurrentProjectArchive();
       renderPages();
-      alert(`「${h.part}」を材料表に追加しました！`);
+      showToast(`「${h.part}」を材料表に追加しました！`);
     }
   }
 
@@ -1350,8 +1549,9 @@
       }
     });
     closeLibraryModal();
+    saveCurrentProjectArchive();
     renderPages();
-    alert(`選択した ${checks.length} 件の材料を現在の材料表に追加しました！`);
+    showToast(`選択した ${checks.length} 件の材料を追加しました！`);
   }
 
   function renderPages() {
@@ -1687,7 +1887,8 @@
         </div>
         <div class="card-actions">
           <span class="card-date-display">${projectData.updatedDate}</span>
-          <button class="btn btn-outline" style="font-size:11px; background:#f0fdf4; color:#166534; border-color:#bbf7d0;" onclick="openLibraryModal(false)" title="過去の物件から検索して引用">📚 過去の履歴から呼出</button>
+          <button class="btn btn-outline" style="font-size:11px; background:#eff6ff; color:#1e40af; border-color:#bfdbfe;" onclick="openProjectArchiveModal()" title="過去物件の完成材料表をそのまま反映">📂 過去物件の材料表を丸ごと読込</button>
+          <button class="btn btn-outline" style="font-size:11px; background:#f0fdf4; color:#166534; border-color:#bbf7d0;" onclick="openLibraryModal(false)" title="過去の物件から検索して引用">📚 過去材料から呼出</button>
           <button class="btn btn-outline" style="font-size:11px;" onclick="copyMaterialTableToClipboard()" title="Excel貼り付け用のテキストを全コピー">📋 表を全コピー (Excel用)</button>
           <button class="btn btn-print" style="font-size:11px;" onclick="printTableOnly()" title="この材料仕上表のみを印刷・PDF出力">📄 材料表のみ印刷</button>
           <label class="btn btn-outline file-label" style="font-size:11px;" title="別物件の材料マスターJSONを読み込む">
@@ -1746,7 +1947,7 @@
       `;
     });
 
-    tbody.innerHTML = rowsHtml || '<tr><td colspan="8" style="text-align:center; color:#94a3b8; padding:24px;">材料がまだ登録されていません。「＋ 新規材料を追加」または「📚 過去の履歴から呼出」から追加してください。</td></tr>';
+    tbody.innerHTML = rowsHtml || '<tr><td colspan="8" style="text-align:center; color:#94a3b8; padding:24px;">材料がまだ登録されていません。「＋ 新規材料を追加」または「📂 過去物件の材料表を丸ごと読込」から追加してください。</td></tr>';
 
     const rows = masterCard.querySelectorAll('.sortable-row');
     rows.forEach(row => {
@@ -1777,6 +1978,7 @@
         if (fromIdx !== toIdx && !isNaN(fromIdx)) {
           const moved = projectData.materials.splice(fromIdx, 1)[0];
           projectData.materials.splice(toIdx, 0, moved);
+          saveCurrentProjectArchive();
           renderPages();
         }
       });
@@ -1973,6 +2175,7 @@
     }
 
     closeModal();
+    saveCurrentProjectArchive();
     renderPages();
   }
 
@@ -2002,7 +2205,9 @@
             if (projectData.materials) {
               projectData.materials.forEach(m => saveToMaterialHistory(m));
             }
+            saveCurrentProjectArchive();
             renderPages();
+            showToast("📥 プロジェクトデータを読み込みました！");
           }
         } catch(err) { alert('JSONの読み込みに失敗しました。'); }
       };
