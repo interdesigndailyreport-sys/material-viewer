@@ -186,11 +186,43 @@
     font-weight: bold;
     cursor: pointer;
   }
+  .popup-bottom-actions {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 8px;
+    padding-top: 6px;
+    border-top: 1px solid rgba(255,255,255,0.15);
+  }
+  .popup-edit-btn {
+    background: #334155;
+    color: #f8fafc;
+    border: none;
+    padding: 3px 8px;
+    border-radius: 4px;
+    font-size: 10.5px;
+    cursor: pointer;
+    font-weight: bold;
+  }
+  .popup-edit-btn:hover { background: #475569; }
 
   .table-section { margin-top: 18px; }
   table { width: 100%; border-collapse: collapse; font-size: 12px; }
   th, td { border: 1px solid var(--border); padding: 8px 10px; text-align: left; vertical-align: top; }
   th { background: #f8fafc; font-weight: bold; }
+  .table-btn-group {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+  .action-btn-edit {
+    color: var(--primary);
+    cursor: pointer;
+    background: none;
+    border: none;
+    font-size: 11px;
+    font-weight: bold;
+    text-decoration: underline;
+  }
   .action-btn-del {
     color: #ef4444;
     cursor: pointer;
@@ -231,7 +263,7 @@
   @page { size: A3 landscape; margin: 10mm; }
   @media print {
     body { background: #fff; padding: 0; }
-    .toolbar, .modal-overlay, .slide-actions, .action-btn-del, th:last-child, td:last-child {
+    .toolbar, .modal-overlay, .slide-actions, .table-btn-group, th:last-child, td:last-child {
       display: none !important;
     }
     .slides-container { max-width: 100%; margin: 0; padding: 0; gap: 0; }
@@ -282,7 +314,7 @@
 
 <div class="modal-overlay" id="modalOverlay">
   <div class="modal">
-    <h3 id="modalTitle">材料仕様の追加</h3>
+    <h3 id="modalTitle">材料仕様の追加・編集</h3>
     <div class="form-group">
       <label>使用部位 (例: 低層部妻壁一部)</label>
       <input type="text" id="inputPart" placeholder="部位名">
@@ -310,6 +342,7 @@
   let projectData = { slides: [] };
   let activeSlideId = null;
   let tempCoords = null;
+  let editingPinId = null; // 編集中のピンID
 
   window.addEventListener('DOMContentLoaded', () => {
     if (projectData.slides.length === 0) {
@@ -426,6 +459,9 @@
             <div>${pin.specs.replace(/\n/g, '<br>')}</div>
             ${pin.maker ? `<div style="color:#94a3b8; margin-top:4px;">/${pin.maker}</div>` : ''}
             ${pin.url ? `<a class="popup-link" href="${pin.url}" target="_blank" rel="noopener noreferrer">メーカー詳細を開く →</a>` : ''}
+            <div class="popup-bottom-actions">
+              <button class="popup-edit-btn" onclick="openEditPinModal(${slide.id}, ${pin.id})">✏️ 仕様を編集</button>
+            </div>
           `;
           pinEl.appendChild(popup);
           imgWrapper.appendChild(pinEl);
@@ -468,7 +504,12 @@
             <td style="white-space:pre-line;">${pin.specs}</td>
             <td style="width:160px;">${pin.maker || '-'}</td>
             <td style="width:150px;">${pin.url ? `<a href="${pin.url}" target="_blank" rel="noopener noreferrer" style="color:#2563eb;">リンクを開く</a>` : '-'}</td>
-            <td style="width:50px; text-align:center;"><button class="action-btn-del" onclick="deletePin(${slide.id}, ${pin.id})">削除</button></td>
+            <td style="width:90px; text-align:center;">
+              <div class="table-btn-group">
+                <button class="action-btn-edit" onclick="openEditPinModal(${slide.id}, ${pin.id})">編集</button>
+                <button class="action-btn-del" onclick="deletePin(${slide.id}, ${pin.id})">削除</button>
+              </div>
+            </td>
           </tr>
         `;
       });
@@ -505,13 +546,35 @@
     if (s) s.title = newTitle;
   }
 
+  // 新規ピン追加
   function openAddPinModal(slideId, x, y) {
     activeSlideId = slideId;
     tempCoords = { x, y };
+    editingPinId = null;
+
+    document.getElementById('modalTitle').textContent = "材料仕様の追加";
     document.getElementById('inputPart').value = '';
     document.getElementById('inputSpecs').value = '';
     document.getElementById('inputMaker').value = '';
     document.getElementById('inputUrl').value = '';
+    document.getElementById('modalOverlay').style.display = 'flex';
+  }
+
+  // 既存ピンの編集
+  function openEditPinModal(slideId, pinId) {
+    activeSlideId = slideId;
+    editingPinId = pinId;
+
+    const slide = projectData.slides.find(s => s.id === slideId);
+    if (!slide) return;
+    const pin = slide.pins.find(p => p.id === pinId);
+    if (!pin) return;
+
+    document.getElementById('modalTitle').textContent = `材料仕様の編集 (No.${slide.pins.indexOf(pin) + 1})`;
+    document.getElementById('inputPart').value = pin.part || '';
+    document.getElementById('inputSpecs').value = pin.specs || '';
+    document.getElementById('inputMaker').value = pin.maker || '';
+    document.getElementById('inputUrl').value = pin.url || '';
     document.getElementById('modalOverlay').style.display = 'flex';
   }
 
@@ -528,12 +591,24 @@
     const maker = document.getElementById('inputMaker').value || '';
     const url = document.getElementById('inputUrl').value || '';
 
-    slide.pins.push({
-      id: Date.now() + Math.random(),
-      x: tempCoords.x,
-      y: tempCoords.y,
-      part, specs, maker, url
-    });
+    if (editingPinId !== null) {
+      // 既存ピンの更新
+      const pin = slide.pins.find(p => p.id === editingPinId);
+      if (pin) {
+        pin.part = part;
+        pin.specs = specs;
+        pin.maker = maker;
+        pin.url = url;
+      }
+    } else {
+      // 新規ピンの作成
+      slide.pins.push({
+        id: Date.now() + Math.random(),
+        x: tempCoords.x,
+        y: tempCoords.y,
+        part, specs, maker, url
+      });
+    }
 
     closeModal();
     renderSlides();
@@ -569,7 +644,6 @@
     }
   });
 
-  // 閲覧専用HTMLを書き出す関数
   function exportReadOnlyHTML() {
     const serializedData = JSON.stringify(projectData);
     const readOnlyContent = `<!DOCTYPE html>
