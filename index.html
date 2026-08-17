@@ -533,7 +533,7 @@
     font-size: 12px;
   }
   .history-list-container {
-    max-height: 440px;
+    max-height: 420px;
     overflow-y: auto;
     border: 1px solid var(--border);
     border-radius: 6px;
@@ -667,7 +667,7 @@
   .save-slot-actions {
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: 5px;
     flex-shrink: 0;
   }
 
@@ -754,24 +754,9 @@
       margin-bottom: 6px !important;
       padding-bottom: 6px !important;
       border-bottom: 1.5px solid #cbd5e1 !important;
-      display: flex !important;
-      justify-content: space-between !important;
-      align-items: center !important;
     }
-    .card-title-input {
-      border: none !important;
-      font-size: 20pt !important;
-      font-weight: bold !important;
-      padding: 0 !important;
-      width: 75% !important;
-      background: transparent !important;
-    }
-    .card-date-display {
-      font-size: 13pt !important;
-      color: #333 !important;
-      margin-right: 0 !important;
-    }
-
+    .card-title-input { font-size: 20pt !important; font-weight: bold !important; border: none !important; width: 75% !important; background: transparent !important; }
+    .card-date-display { font-size: 13pt !important; color: #333 !important; }
     .image-wrapper {
       background: none !important;
       min-height: 0 !important;
@@ -796,7 +781,6 @@
       max-width: 100% !important;
       object-fit: contain !important;
     }
-
     .pin {
       background: #000 !important;
       color: #fff !important;
@@ -807,13 +791,8 @@
     .pin-popup { display: none !important; }
     .no-input { border: none !important; background: transparent !important; padding: 0 !important; }
 
-    body.print-table-only .page-card:not(.master-card) {
-      display: none !important;
-    }
-    body.print-table-only .master-card {
-      display: block !important;
-      page-break-after: auto !important;
-    }
+    body.print-table-only .page-card:not(.master-card) { display: none !important; }
+    body.print-table-only .master-card { display: block !important; page-break-after: auto !important; }
   }
 </style>
 </head>
@@ -836,7 +815,6 @@
     <input type="text" class="meta-input" id="projectDateInput" style="width: 80px;" onchange="updateProjectDate(this.value)">
   </div>
 
-  <!-- ゲーム風セーブ／ロード画面ボタン -->
   <button class="btn btn-save-slot" onclick="openSaveSlotModal()" title="ゲームのセーブデータ画面のように一覧から選択・保存・読込">🎮 セーブ / ロード画面</button>
   <button class="btn btn-outline" style="background:#f0fdf4; color:#166534; border-color:#bbf7d0;" onclick="openLibraryModal()" title="過去に使った全材料を個別検索">📚 材料ライブラリ検索</button>
   <button class="btn btn-outline" style="background:#fffbeb; color:#b45309; border-color:#fde68a;" onclick="openHelpModal()" title="操作方法・ショートカット一覧を表示">❓ 使い方</button>
@@ -967,14 +945,14 @@
 
 <!-- モーダル（ゲーム風セーブ／ロードデータ選択画面） -->
 <div class="modal-overlay" id="saveSlotModalOverlay">
-  <div class="modal" style="width: 860px;">
+  <div class="modal" style="width: 880px;">
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; border-bottom:1.5px solid #e2e8f0; padding-bottom:10px;">
       <div>
         <h3 style="margin:0; font-size:17px; display:flex; align-items:center; gap:8px;">
           <span>🎮 セーブ / ロード画面</span>
           <span style="font-size:11px; font-weight:normal; background:#e0f2fe; color:#0369a1; padding:2px 8px; border-radius:4px;">セーブデータ選択</span>
         </h3>
-        <div style="font-size:11.5px; color:#64748b; margin-top:2px;">過去物件の全データ読込・材料表の全件反映・スロット保存を管理できます</div>
+        <div style="font-size:11.5px; color:#64748b; margin-top:2px;">過去物件の全データ読込・材料表の個別抽出・スロット保存を管理できます</div>
       </div>
       <button class="btn btn-success" onclick="saveCurrentToNewSlot()">＋ 現在の状態を新規セーブ</button>
     </div>
@@ -983,6 +961,26 @@
 
     <div class="modal-actions" style="margin-top:14px;">
       <button class="btn btn-secondary" onclick="closeSaveSlotModal()">閉じる (Esc)</button>
+    </div>
+  </div>
+</div>
+
+<!-- モーダル（材料を個別に選択して抽出・追加） -->
+<div class="modal-overlay" id="extractMatModalOverlay">
+  <div class="modal" style="width: 780px;">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; border-bottom:1px solid #e2e8f0; padding-bottom:8px;">
+      <div>
+        <h3 style="margin:0; font-size:15px;" id="extractModalTitle">🔍 材料を選んで現在の表に追加</h3>
+        <div style="font-size:11.5px; color:#64748b;">追加したい材料にチェックを入れて「選択した材料を追加」を押してください</div>
+      </div>
+      <button class="btn btn-outline" style="font-size:11px; padding:3px 8px;" onclick="toggleSelectAllExtractMats()">全選択 / 解除</button>
+    </div>
+
+    <div class="history-list-container" id="extractMatListContainer" style="max-height: 420px;"></div>
+
+    <div class="modal-actions" style="margin-top:14px;">
+      <button class="btn btn-outline" onclick="closeExtractMatModal()">キャンセル</button>
+      <button class="btn btn-success" onclick="confirmExtractMats()">選択した材料を追加</button>
     </div>
   </div>
 </div>
@@ -1024,10 +1022,10 @@
       </div>
 
       <div class="help-card">
-        <div class="help-card-title">🎮 4. ゲーム風セーブ・ロード＆材料全件反映</div>
+        <div class="help-card-title">🎮 4. ゲーム風セーブ・ロード＆材料抽出</div>
         <ul class="help-list">
           <li><strong>セーブ/ロード画面:</strong> 「🎮 セーブ / ロード画面」からゲームのスロットのように過去物件の選択・保存・復元ができます。</li>
-          <li><strong>材料表のみ全件反映:</strong> スロット内の「📋 材料表のみ全件反映」で過去物件の全材料を余さず一発適用できます。</li>
+          <li><strong>材料を個別抽出:</strong> スロット内の「🔍 材料を選んで抽出」で欲しい材料だけにチェックを入れて取り込めます。</li>
           <li><strong>表の全コピー:</strong> 「📋 表を全コピー」でExcelやスプレッドシートに一発貼り付けできます。</li>
         </ul>
       </div>
@@ -1054,28 +1052,24 @@
     return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}:${String(d.getSeconds()).padStart(2,'0')}`;
   };
 
-  const DB_NAME = 'ArchViewer_SafeDB_v5';
+  const DB_NAME = 'ArchViewer_GameSlots_DB_v1';
   const DB_VERSION = 1;
-  const STORAGE_KEY_HISTORY = 'arch_mat_history_v5';
-  const STORAGE_KEY_SAVE_SLOTS = 'arch_mat_game_save_slots_v5';
+  const STORAGE_KEY_HISTORY = 'arch_mat_history_v6';
 
-  // --- IndexedDB 安全ヘルパー（画像＆下書き保存用） ---
+  // --- IndexedDB 大容量安全ストレージ（セーブスロット・画像完全保持） ---
   function openSafeDB() {
     return new Promise((resolve) => {
       try {
         const req = indexedDB.open(DB_NAME, DB_VERSION);
         req.onupgradeneeded = (e) => {
           const db = e.target.result;
-          if (!db.objectStoreNames.contains('project')) {
-            db.createObjectStore('project');
-          }
+          if (!db.objectStoreNames.contains('active_project')) db.createObjectStore('active_project');
+          if (!db.objectStoreNames.contains('slots')) db.createObjectStore('slots', { keyPath: 'id' });
         };
         req.onsuccess = () => resolve(req.result);
         req.onerror = () => resolve(null);
         req.onblocked = () => resolve(null);
-      } catch (e) {
-        resolve(null);
-      }
+      } catch (e) { resolve(null); }
     });
   }
 
@@ -1083,8 +1077,8 @@
     try {
       const db = await openSafeDB();
       if (!db) return;
-      const tx = db.transaction('project', 'readwrite');
-      tx.objectStore('project').put(data, 'active_project');
+      const tx = db.transaction('active_project', 'readwrite');
+      tx.objectStore('active_project').put(data, 'current');
       const ind = document.getElementById('autoSaveIndicator');
       if (ind) {
         ind.textContent = `✓ 自動保存済 (${getTimeStr()})`;
@@ -1098,22 +1092,63 @@
       const db = await openSafeDB();
       if (!db) return null;
       return new Promise((resolve) => {
-        const tx = db.transaction('project', 'readonly');
-        const req = tx.objectStore('project').get('active_project');
+        const tx = db.transaction('active_project', 'readonly');
+        const req = tx.objectStore('active_project').get('current');
         req.onsuccess = () => resolve(req.result || null);
         req.onerror = () => resolve(null);
       });
-    } catch (e) {
-      return null;
-    }
+    } catch (e) { return null; }
   }
 
   async function clearProjectFromDB() {
     try {
       const db = await openSafeDB();
       if (!db) return;
-      const tx = db.transaction('project', 'readwrite');
-      tx.objectStore('project').delete('active_project');
+      const tx = db.transaction('active_project', 'readwrite');
+      tx.objectStore('active_project').delete('current');
+    } catch (e) {}
+  }
+
+  async function idbSaveSlotItem(slot) {
+    try {
+      const db = await openSafeDB();
+      if (!db) return;
+      return new Promise((resolve) => {
+        const tx = db.transaction('slots', 'readwrite');
+        tx.objectStore('slots').put(slot);
+        tx.oncomplete = () => resolve(true);
+        tx.onerror = () => resolve(false);
+      });
+    } catch (e) { return false; }
+  }
+
+  async function idbGetAllSlots() {
+    try {
+      const db = await openSafeDB();
+      if (!db) return [];
+      return new Promise((resolve) => {
+        const tx = db.transaction('slots', 'readonly');
+        const req = tx.objectStore('slots').getAll();
+        req.onsuccess = () => {
+          const list = req.result || [];
+          list.sort((a, b) => (b.savedAt || 0) - (a.savedAt || 0));
+          resolve(list);
+        };
+        req.onerror = () => resolve([]);
+      });
+    } catch (e) { return []; }
+  }
+
+  async function idbDeleteSlot(id) {
+    try {
+      const db = await openSafeDB();
+      if (!db) return;
+      return new Promise((resolve) => {
+        const tx = db.transaction('slots', 'readwrite');
+        tx.objectStore('slots').delete(id);
+        tx.oncomplete = () => resolve(true);
+        tx.onerror = () => resolve(false);
+      });
     } catch (e) {}
   }
 
@@ -1133,6 +1168,7 @@
   let selectedSlideIds = new Set();
   let isLibraryForSingleApply = false;
   let lastPinDragEndTime = 0;
+  let extractTargetSlotMats = [];
 
   // --- ドラッグ中の上下オートスクロール制御 ---
   let autoScrollSpeed = 0;
@@ -1193,9 +1229,9 @@
     saveProjectToDB(projectData);
   }
 
-  function manualSaveDraft() {
+  async function manualSaveDraft() {
     saveCurrentDraft();
-    saveToActiveSlotSilently();
+    await saveToActiveSlotSilently();
     showToast(`💾 下書き＆パース画像を保存しました (${getTimeStr()})`);
   }
 
@@ -1246,58 +1282,54 @@
     event.target.value = '';
   }
 
-  // --- ゲーム風セーブデータスロット管理（全材料・全パース完全保持） ---
-  function getSaveSlots() {
-    try {
-      return JSON.parse(localStorage.getItem(STORAGE_KEY_SAVE_SLOTS)) || [];
-    } catch(e) { return []; }
-  }
-
-  function setSaveSlots(slots) {
-    try {
-      localStorage.setItem(STORAGE_KEY_SAVE_SLOTS, JSON.stringify(slots));
-    } catch(e) {}
-  }
-
-  function saveToActiveSlotSilently() {
+  // --- ゲーム風セーブデータスロット管理（IndexedDB完全保存） ---
+  async function saveToActiveSlotSilently() {
     if (!projectData.materials || projectData.materials.length === 0) return;
-    let slots = getSaveSlots();
     const projName = projectData.projectName || '未設定物件';
-
-    // 同名物件のスロットを更新または先頭に追加
-    slots = slots.filter(s => s.projectName !== projName);
-    
-    // 代表サムネイル
     const firstSlideWithImg = (projectData.slides || []).find(s => s.imageSrc);
     const thumbImg = firstSlideWithImg ? firstSlideWithImg.imageSrc : null;
 
-    slots.unshift({
+    const slotItem = {
+      id: 'slot_' + projName.replace(/\s+/g, '_'),
+      projectName: projName,
+      updatedDate: projectData.updatedDate || getTodayStr(),
+      savedAt: Date.now(),
+      thumbImg: thumbImg,
+      slideCount: (projectData.slides || []).length,
+      materials: JSON.parse(JSON.stringify(projectData.materials)),
+      slides: JSON.parse(JSON.stringify(projectData.slides))
+    };
+
+    await idbSaveSlotItem(slotItem);
+  }
+
+  async function saveCurrentToNewSlot() {
+    const projName = projectData.projectName || '未設定物件';
+    const firstSlideWithImg = (projectData.slides || []).find(s => s.imageSrc);
+    const thumbImg = firstSlideWithImg ? firstSlideWithImg.imageSrc : null;
+
+    const slotItem = {
       id: 'slot_' + Date.now(),
       projectName: projName,
       updatedDate: projectData.updatedDate || getTodayStr(),
       savedAt: Date.now(),
       thumbImg: thumbImg,
       slideCount: (projectData.slides || []).length,
-      materials: JSON.parse(JSON.stringify(projectData.materials)), // 全材料を漏れなく保存
+      materials: JSON.parse(JSON.stringify(projectData.materials)),
       slides: JSON.parse(JSON.stringify(projectData.slides))
-    });
+    };
 
-    if (slots.length > 30) slots = slots.slice(0, 30);
-    setSaveSlots(slots);
-  }
-
-  function saveCurrentToNewSlot() {
-    saveToActiveSlotSilently();
-    openSaveSlotModal();
+    await idbSaveSlotItem(slotItem);
+    await openSaveSlotModal();
     showToast(`💾 新規セーブスロットに保存しました！`);
   }
 
-  function openSaveSlotModal() {
-    const slots = getSaveSlots();
+  async function openSaveSlotModal() {
+    const slots = await idbGetAllSlots();
     const container = document.getElementById('saveSlotsContainer');
 
     if (slots.length === 0) {
-      container.innerHTML = '<div style="padding:48px; text-align:center; color:#94a3b8; font-size:13px;">まだセーブデータがありません。<br>「＋ 現在の状態を新規セーブ」を押してスロットに記録してください。</div>';
+      container.innerHTML = '<div style="padding:48px; text-align:center; color:#94a3b8; font-size:13px;">まだセーブデータがありません。<br>右上の「＋ 現在の状態を新規セーブ」を押してスロットに記録してください。</div>';
     } else {
       let html = '';
       slots.forEach((slot, idx) => {
@@ -1306,7 +1338,6 @@
         const slotNoStr = String(idx + 1).padStart(2, '0');
         const isActive = (slot.projectName === projectData.projectName);
 
-        // 全材料のタグ一覧（全件余さず表示）
         let allMatsTags = '';
         (slot.materials || []).forEach((m, mIdx) => {
           const no = (m.customNo !== undefined && m.customNo !== '') ? m.customNo : (mIdx + 1);
@@ -1333,9 +1364,12 @@
             </div>
             <div class="save-slot-actions">
               <button class="btn btn-save-slot" style="padding:5px 10px; font-size:11.5px;" onclick="loadProjectFromSlot('${slot.id}')">▶ ロード (全体復元)</button>
-              <button class="btn btn-success" style="padding:5px 10px; font-size:11px;" onclick="applyTableOnlyFromSlot('${slot.id}', true)">📋 材料表のみ全件反映</button>
-              <button class="btn btn-outline" style="padding:4px 8px; font-size:10.5px;" onclick="overwriteSaveToSlot('${slot.id}')">💾 ここに上書き</button>
-              <button class="btn btn-outline" style="padding:4px 8px; font-size:10.5px; color:#ef4444; border-color:#fecaca;" onclick="deleteSaveSlot('${slot.id}')">🗑️ 削除</button>
+              <button class="btn btn-outline" style="padding:5px 10px; font-size:11px; background:#eff6ff; color:#1e40af; border-color:#bfdbfe;" onclick="openExtractMatModal('${slot.id}')">🔍 材料を選んで抽出</button>
+              <button class="btn btn-success" style="padding:5px 10px; font-size:11px;" onclick="applyTableOnlyFromSlot('${slot.id}', true)">📋 全材料を一括反映</button>
+              <div style="display:flex; gap:4px; margin-top:2px;">
+                <button class="btn btn-outline" style="padding:3px 6px; font-size:10.5px; flex:1;" onclick="overwriteSaveToSlot('${slot.id}')">💾 上書き</button>
+                <button class="btn btn-outline" style="padding:3px 6px; font-size:10.5px; color:#ef4444; border-color:#fecaca;" onclick="deleteSaveSlot('${slot.id}')">🗑️ 削除</button>
+              </div>
             </div>
           </div>
         `;
@@ -1349,9 +1383,8 @@
     document.getElementById('saveSlotModalOverlay').style.display = 'none';
   }
 
-  // スロットからプロジェクト全体（パース＋ピン＋材料表）をロード
   async function loadProjectFromSlot(slotId) {
-    const slots = getSaveSlots();
+    const slots = await idbGetAllSlots();
     const slot = slots.find(s => s.id === slotId);
     if (!slot) return;
 
@@ -1371,9 +1404,8 @@
     showToast(`🎮「${slot.projectName}」をロードしました！`);
   }
 
-  // スロットの材料表のみを全件反映（上書きまたは追加）
-  function applyTableOnlyFromSlot(slotId, overwrite = true) {
-    const slots = getSaveSlots();
+  async function applyTableOnlyFromSlot(slotId, overwrite = true) {
+    const slots = await idbGetAllSlots();
     const slot = slots.find(s => s.id === slotId);
     if (!slot || !slot.materials) return;
 
@@ -1403,9 +1435,78 @@
     showToast(`📋「${slot.projectName}」の全材料（${totalCount}件）を反映しました！`);
   }
 
-  // 指定スロットに現在の状態を上書きセーブ
-  function overwriteSaveToSlot(slotId) {
-    let slots = getSaveSlots();
+  // --- 個別材料の抽出モーダル ---
+  async function openExtractMatModal(slotId) {
+    const slots = await idbGetAllSlots();
+    const slot = slots.find(s => s.id === slotId);
+    if (!slot || !slot.materials || slot.materials.length === 0) {
+      alert("このセーブデータには材料が登録されていません。");
+      return;
+    }
+
+    extractTargetSlotMats = slot.materials;
+    document.getElementById('extractModalTitle').textContent = `🔍「${slot.projectName}」から材料を選んで抽出`;
+
+    const container = document.getElementById('extractMatListContainer');
+    let html = '';
+    slot.materials.forEach((m, idx) => {
+      const no = (m.customNo !== undefined && m.customNo !== '') ? m.customNo : (idx + 1);
+      html += `
+        <label class="history-card-item">
+          <input type="checkbox" class="extract-check" data-idx="${idx}" checked style="transform:scale(1.2); margin-right:4px;">
+          ${m.materialImg ? `<img src="${m.materialImg}" class="history-item-thumb">` : '<div class="history-item-thumb" style="display:flex;align-items:center;justify-content:center;font-size:10px;color:#94a3b8;">なし</div>'}
+          <div style="flex:1; font-size:12px;">
+            <div>
+              <span class="project-tag">No.${no}</span>
+              <strong style="color:#0f172a; margin-left:4px;">■${m.part}</strong>
+              <span style="color:#64748b;">(${m.maker || 'メーカー未設定'})</span>
+            </div>
+            <div style="color:#334155; white-space:pre-line; font-size:11.5px; margin-top:3px; line-height:1.4;">${m.specs}</div>
+          </div>
+        </label>
+      `;
+    });
+    container.innerHTML = html;
+    document.getElementById('extractMatModalOverlay').style.display = 'flex';
+  }
+
+  function closeExtractMatModal() {
+    document.getElementById('extractMatModalOverlay').style.display = 'none';
+  }
+
+  function toggleSelectAllExtractMats() {
+    const checks = document.querySelectorAll('.extract-check');
+    const hasUnchecked = Array.from(checks).some(c => !c.checked);
+    checks.forEach(c => c.checked = hasUnchecked);
+  }
+
+  function confirmExtractMats() {
+    const checks = document.querySelectorAll('.extract-check:checked');
+    if (checks.length === 0) {
+      alert("抽出したい材料にチェックを入れてください。");
+      return;
+    }
+    checks.forEach(chk => {
+      const idx = parseInt(chk.dataset.idx, 10);
+      const m = extractTargetSlotMats[idx];
+      if (m) {
+        const cloned = JSON.parse(JSON.stringify(m));
+        cloned.id = 'mat_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6);
+        cloned.customNo = String(projectData.materials.length + 1);
+        projectData.materials.push(cloned);
+        saveToMaterialHistory(cloned);
+      }
+    });
+
+    closeExtractMatModal();
+    closeSaveSlotModal();
+    saveCurrentDraft();
+    renderPages();
+    showToast(`選択した ${checks.length} 件の材料を現在の材料表に追加しました！`);
+  }
+
+  async function overwriteSaveToSlot(slotId) {
+    let slots = await idbGetAllSlots();
     const sIndex = slots.findIndex(s => s.id === slotId);
     if (sIndex === -1) return;
 
@@ -1425,17 +1526,15 @@
       slides: JSON.parse(JSON.stringify(projectData.slides))
     };
 
-    setSaveSlots(slots);
-    openSaveSlotModal();
+    await idbSaveSlotItem(slots[sIndex]);
+    await openSaveSlotModal();
     showToast(`💾 スロットに上書き保存しました！`);
   }
 
-  function deleteSaveSlot(slotId) {
+  async function deleteSaveSlot(slotId) {
     if (confirm("このセーブデータスロットを完全に削除しますか？")) {
-      let slots = getSaveSlots();
-      slots = slots.filter(s => s.id !== slotId);
-      setSaveSlots(slots);
-      openSaveSlotModal();
+      await idbDeleteSlot(slotId);
+      await openSaveSlotModal();
       showToast("🗑️ セーブスロットを削除しました");
     }
   }
@@ -1522,6 +1621,7 @@
       clearSelection();
       closeLibraryModal();
       closeSaveSlotModal();
+      closeExtractMatModal();
       closeHelpModal();
       return;
     }
@@ -1551,7 +1651,6 @@
   function updateProjectName(val) {
     projectData.projectName = val || '未設定物件';
     saveCurrentDraft();
-    saveToActiveSlotSilently();
   }
 
   function updateProjectDate(val) {
@@ -1751,7 +1850,6 @@
     
     projectData.materials.splice(mIndex + 1, 0, cloned);
     saveToMaterialHistory(cloned);
-    saveToActiveSlotSilently();
     renderPages();
     showToast("材料を複製しました");
   }
@@ -1762,7 +1860,6 @@
       projectData.slides.forEach(s => {
         s.pins = s.pins.filter(p => String(p.materialId) !== String(matId));
       });
-      saveToActiveSlotSilently();
       renderPages();
     }
   }
@@ -1853,7 +1950,6 @@
             projectData.materials.push(newMat);
             saveToMaterialHistory(newMat);
           });
-          saveToActiveSlotSilently();
           renderPages();
           showToast(`📥 ${matsToImport.length} 件の材料マスターを追加しました！`);
         } else {
@@ -1982,7 +2078,6 @@
         url: h.url,
         materialImg: h.materialImg
       });
-      saveToActiveSlotSilently();
       renderPages();
       showToast(`「${h.part}」を材料表に追加しました！`);
     }
@@ -2011,7 +2106,6 @@
       }
     });
     closeLibraryModal();
-    saveToActiveSlotSilently();
     renderPages();
     showToast(`選択した ${checks.length} 件の材料を追加しました！`);
   }
@@ -2058,6 +2152,7 @@
 
       card.addEventListener('dragover', (e) => {
         e.preventDefault();
+        if (e.clientY && e.clientY !== 0) updateAutoScroll(e.clientY);
         const rect = card.getBoundingClientRect();
         const mid = rect.top + rect.height / 2;
         if (e.clientY < mid) {
@@ -2352,7 +2447,7 @@
         </div>
         <div class="card-actions">
           <span class="card-date-display">${projectData.updatedDate}</span>
-          <button class="btn btn-save-slot" style="font-size:11px;" onclick="openSaveSlotModal()" title="ゲーム風セーブデータ画面から材料表を全件反映">🎮 セーブ画面から材料表呼出</button>
+          <button class="btn btn-save-slot" style="font-size:11px;" onclick="openSaveSlotModal()" title="ゲーム風セーブデータ画面から材料表を反映・抽出">🎮 セーブ画面から材料表呼出</button>
           <button class="btn btn-outline" style="font-size:11px; background:#f0fdf4; color:#166534; border-color:#bbf7d0;" onclick="openLibraryModal(false)" title="過去の物件から検索して引用">📚 過去材料から呼出</button>
           <button class="btn btn-outline" style="font-size:11px;" onclick="copyMaterialTableToClipboard()" title="Excel貼り付け用のテキストを全コピー">📋 表を全コピー (Excel用)</button>
           <button class="btn btn-print" style="font-size:11px;" onclick="printTableOnly()" title="この材料仕上表のみを印刷・PDF出力">📄 材料表のみ印刷</button>
@@ -2638,7 +2733,6 @@
     }
 
     closeModal();
-    saveToActiveSlotSilently();
     renderPages();
     showToast("材料仕様を保存しました");
   }
@@ -2669,7 +2763,6 @@
             if (projectData.materials) {
               projectData.materials.forEach(m => saveToMaterialHistory(m));
             }
-            saveToActiveSlotSilently();
             renderPages();
             showToast("📥 プロジェクトデータを読み込みました！");
           }
@@ -2748,6 +2841,7 @@
       display: flex !important;
       justify-content: center !important;
       align-items: center !important;
+      overflow: hidden !important;
     }
     .image-stage {
       max-height: 250mm !important;
