@@ -29,7 +29,7 @@
     border-bottom: 2px solid var(--border);
     padding: 12px 24px;
     display: flex;
-    gap: 10px;
+    gap: 12px;
     align-items: center;
     box-shadow: 0 2px 8px rgba(0,0,0,0.08);
   }
@@ -63,6 +63,29 @@
   .file-label { cursor: pointer; }
   input[type="file"] { display: none; }
 
+  /* 日付入力枠 */
+  .date-box {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: #f8fafc;
+    border: 1px solid var(--border);
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: bold;
+    color: #475569;
+  }
+  .date-input {
+    border: none;
+    background: transparent;
+    font-size: 12px;
+    font-weight: bold;
+    color: #1e293b;
+    width: 110px;
+    outline: none;
+  }
+
   .pages-container {
     max-width: 1400px;
     margin: 24px auto;
@@ -72,6 +95,7 @@
     padding: 0 16px;
   }
   
+  /* カード全体がドラッグ対象 */
   .page-card {
     background: var(--card-bg);
     border-radius: 8px;
@@ -79,15 +103,18 @@
     box-shadow: 0 4px 12px rgba(0,0,0,0.05);
     padding: 20px 24px 24px 24px;
     position: relative;
-    transition: box-shadow 0.2s, transform 0.2s;
+    cursor: grab;
+    transition: box-shadow 0.2s, transform 0.2s, border-color 0.2s;
   }
+  .page-card:active { cursor: grabbing; }
   .page-card.dragging {
-    opacity: 0.4;
+    opacity: 0.35;
     border: 2px dashed var(--primary);
+    transform: scale(0.99);
   }
   .page-card.drag-over {
-    border-top: 4px solid var(--primary);
-    transform: translateY(2px);
+    border-top: 5px solid var(--primary);
+    transform: translateY(3px);
   }
 
   .card-header {
@@ -120,6 +147,7 @@
     border-radius: 4px;
     padding: 4px 8px;
     width: 360px;
+    cursor: text;
   }
   .card-title-input:hover, .card-title-input:focus {
     border-color: var(--border);
@@ -130,18 +158,21 @@
     align-items: center;
     gap: 8px;
   }
-  .drag-handle {
-    cursor: grab;
-    color: #64748b;
-    padding: 4px 8px;
-    border-radius: 4px;
-    background: #f1f5f9;
-    border: 1px solid var(--border);
+  .card-date-display {
     font-size: 12px;
+    color: #64748b;
     font-weight: bold;
+    margin-right: 8px;
+  }
+  .drag-hint {
+    font-size: 11px;
+    color: #94a3b8;
+    background: #f1f5f9;
+    padding: 3px 8px;
+    border-radius: 4px;
+    border: 1px solid #e2e8f0;
     user-select: none;
   }
-  .drag-handle:active { cursor: grabbing; }
 
   /* パースエリア */
   .image-wrapper {
@@ -155,6 +186,7 @@
     align-items: center;
     min-height: 360px;
     user-select: none;
+    cursor: default;
   }
   .image-stage {
     position: relative;
@@ -268,7 +300,7 @@
   .popup-del-pin-btn { background: transparent; color: #f87171; border: none; font-size: 10.5px; cursor: pointer; text-decoration: underline; }
 
   /* 共通テーブル */
-  table { width: 100%; border-collapse: collapse; font-size: 12px; background: #fff; }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; background: #fff; cursor: default; }
   th, td { border: 1px solid var(--border); padding: 10px 12px; text-align: left; vertical-align: middle; }
   th { background: #f8fafc; font-weight: bold; white-space: nowrap; }
   
@@ -293,6 +325,7 @@
     padding: 6px 2px;
     font-size: 12px;
     background: #ffffff;
+    cursor: text;
   }
   .no-input:focus { border-color: var(--primary); outline: none; background: #eff6ff; }
 
@@ -352,7 +385,7 @@
   @page { size: A3 landscape; margin: 10mm; }
   @media print {
     body { background: #fff; padding: 0; }
-    .toolbar, .modal-overlay, .card-actions, .table-btn-group, .row-drag-handle, .popup-del-pin-btn, th.col-handle, td.col-handle, th:last-child, td:last-child, .btn-add-mat {
+    .toolbar, .modal-overlay, .card-actions, .table-btn-group, .row-drag-handle, .popup-del-pin-btn, th.col-handle, td.col-handle, th:last-child, td:last-child, .btn-add-mat, .drag-hint {
       display: none !important;
     }
     .pages-container { max-width: 100%; margin: 0; padding: 0; gap: 0; }
@@ -364,8 +397,10 @@
       break-after: page;
       min-height: 275mm;
       height: 100%;
+      cursor: default;
     }
-    .card-title-input { border: none; font-size: 18pt; padding: 0; width: 100%; }
+    .card-title-input { border: none; font-size: 18pt; padding: 0; width: 70%; }
+    .card-date-display { font-size: 12pt; color: #333; margin-right: 0; }
     .image-wrapper { background: none; min-height: 0; }
     .image-stage { max-height: 180mm; }
     .image-stage img { max-height: 180mm; width: auto; max-width: 100%; object-fit: contain; }
@@ -390,6 +425,11 @@
   </label>
   <button class="btn btn-outline" onclick="addEmptySlide()">＋ 空白パースを追加</button>
   
+  <div class="date-box">
+    <span>編集日:</span>
+    <input type="text" class="date-input" id="projectDateInput" onchange="updateProjectDate(this.value)">
+  </div>
+  
   <div style="margin-left: auto; display: flex; gap: 8px;">
     <button class="btn btn-success" onclick="exportReadOnlyHTML()">クライアント用 閲覧専用HTMLを出力</button>
     <button class="btn btn-secondary" onclick="exportProjectJSON()">データ保存 (JSON)</button>
@@ -411,7 +451,6 @@
       💡 この材料を変更すると、配置されているすべてのパースおよび材料表に一括連動します。
     </div>
 
-    <!-- ピン配置時のみ表示されるマテリアル選択セレクトボックス -->
     <div class="form-group" id="groupMatSelect" style="display:none;">
       <label>使用する材料を選択 (または新規作成)</label>
       <select id="modalMatSelect" onchange="onMatSelectChange()">
@@ -461,10 +500,16 @@
 </div>
 
 <script>
-  // 一元管理データ構造
+  // 日付の初期設定（YYYY/MM/DD）
+  const getTodayStr = () => {
+    const d = new Date();
+    return `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')}`;
+  };
+
   let projectData = {
-    materials: [], // { id, customNo, part, specs, maker, url, materialImg }
-    slides: []     // { id, title, imageSrc, pins: [{ id, materialId, x, y }] }
+    updatedDate: getTodayStr(),
+    materials: [],
+    slides: []
   };
 
   let activeSlideId = null;
@@ -473,10 +518,16 @@
   let tempMaterialImgSrc = null;
 
   window.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('projectDateInput').value = projectData.updatedDate;
     if (projectData.slides.length === 0) {
       addEmptySlide("外観・アプローチ パース");
     }
   });
+
+  function updateProjectDate(val) {
+    projectData.updatedDate = val || getTodayStr();
+    renderPages();
+  }
 
   // 一括画像アップロード
   document.getElementById('batchImageInput').addEventListener('change', function(e) {
@@ -493,6 +544,8 @@
           imageSrc: event.target.result,
           pins: []
         });
+        projectData.updatedDate = getTodayStr();
+        document.getElementById('projectDateInput').value = projectData.updatedDate;
         renderPages();
       };
       reader.readAsDataURL(file);
@@ -531,7 +584,6 @@
     if (s) s.title = newTitle;
   }
 
-  // 材料表側から直接Noを打ち替えた場合
   function updateMaterialNo(matId, val) {
     const mat = projectData.materials.find(m => m.id === matId);
     if (mat) {
@@ -540,7 +592,6 @@
     }
   }
 
-  // 材料の削除
   function deleteMaterial(matId) {
     if (confirm("この材料を削除しますか？\n（配置されているすべてのパース上のピンも削除されます）")) {
       projectData.materials = projectData.materials.filter(m => m.id !== matId);
@@ -551,7 +602,6 @@
     }
   }
 
-  // パース上から特定のピンのみを取り外す
   function removePinFromSlide(slideId, pinId) {
     const slide = projectData.slides.find(s => s.id === slideId);
     if (slide) {
@@ -565,39 +615,33 @@
     const container = document.getElementById('pagesContainer');
     container.innerHTML = "";
 
-    // 1. 各パース画面を描画
+    // 1. 各パース画面を描画（カード全体がドラッグ可能）
     projectData.slides.forEach((slide, sIndex) => {
       const card = document.createElement('div');
       card.className = 'page-card';
       card.dataset.index = sIndex;
+      card.draggable = true;
 
-      const header = document.createElement('div');
-      header.className = 'card-header';
-      header.innerHTML = `
-        <div class="card-title-group">
-          <span class="card-badge">パース画面 ${sIndex + 1}</span>
-          <input class="card-title-input" type="text" value="${slide.title}" onchange="updateSlideTitle(${slide.id}, this.value)" placeholder="パース名を入力">
-        </div>
-        <div class="card-actions">
-          <div class="drag-handle" draggable="true" title="ドラッグしてパースの順序を入れ替え">⠿ ドラッグして並替</div>
-          <button class="btn btn-outline" style="padding:4px 8px;" onclick="moveSlide(${sIndex}, -1)" ${sIndex === 0 ? 'disabled' : ''}>▲</button>
-          <button class="btn btn-outline" style="padding:4px 8px;" onclick="moveSlide(${sIndex}, 1)" ${sIndex === projectData.slides.length - 1 ? 'disabled' : ''}>▼</button>
-          <button class="btn btn-danger" style="padding:4px 8px;" onclick="deleteSlide(${slide.id})">スライド削除</button>
-        </div>
-      `;
-
-      // スライドドラッグ
-      const handle = header.querySelector('.drag-handle');
-      handle.addEventListener('dragstart', (e) => {
+      // カードドラッグ制御（入力欄や画像操作時はカード全体のドラッグを無効化）
+      card.addEventListener('dragstart', (e) => {
+        if (e.target.closest('input, textarea, select, button, .image-stage, .pin, .table-section')) {
+          e.preventDefault();
+          return;
+        }
         card.classList.add('dragging');
         e.dataTransfer.setData('text/plain', sIndex);
       });
-      handle.addEventListener('dragend', () => {
+      card.addEventListener('dragend', () => {
         card.classList.remove('dragging');
         document.querySelectorAll('.page-card').forEach(c => c.classList.remove('drag-over'));
       });
-      card.addEventListener('dragover', (e) => { e.preventDefault(); card.classList.add('drag-over'); });
-      card.addEventListener('dragleave', () => card.classList.remove('drag-over'));
+      card.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        card.classList.add('drag-over');
+      });
+      card.addEventListener('dragleave', () => {
+        card.classList.remove('drag-over');
+      });
       card.addEventListener('drop', (e) => {
         e.preventDefault();
         card.classList.remove('drag-over');
@@ -610,6 +654,21 @@
         }
       });
 
+      const header = document.createElement('div');
+      header.className = 'card-header';
+      header.innerHTML = `
+        <div class="card-title-group">
+          <span class="card-badge">パース画面 ${sIndex + 1}</span>
+          <input class="card-title-input" type="text" value="${slide.title}" onchange="updateSlideTitle(${slide.id}, this.value)" placeholder="パース名を入力">
+        </div>
+        <div class="card-actions">
+          <span class="card-date-display">${projectData.updatedDate}</span>
+          <span class="drag-hint">↕ 枠を掴んで並替</span>
+          <button class="btn btn-outline" style="padding:4px 8px;" onclick="moveSlide(${sIndex}, -1)" ${sIndex === 0 ? 'disabled' : ''}>▲</button>
+          <button class="btn btn-outline" style="padding:4px 8px;" onclick="moveSlide(${sIndex}, 1)" ${sIndex === projectData.slides.length - 1 ? 'disabled' : ''}>▼</button>
+          <button class="btn btn-danger" style="padding:4px 8px;" onclick="deleteSlide(${slide.id})">削除</button>
+        </div>
+      `;
       card.appendChild(header);
 
       const imgWrapper = document.createElement('div');
@@ -744,16 +803,20 @@
       container.appendChild(card);
     });
 
-    // 2. 一番最後のページに「全パース共通 材料仕上表」を描画
+    // 2. 最終ページ：共通材料仕上表
     const masterCard = document.createElement('div');
     masterCard.className = 'page-card';
+    masterCard.draggable = false;
     masterCard.innerHTML = `
       <div class="card-header">
         <div class="card-title-group">
           <span class="card-badge master">最終ページ</span>
           <div style="font-size:17px; font-weight:bold;">プロジェクト共通 材料仕上表</div>
         </div>
-        <button class="btn btn-outline btn-add-mat" style="font-size:12px;" onclick="openAddMaterialDirectModal()">＋ 新規材料を追加</button>
+        <div class="card-actions">
+          <span class="card-date-display">${projectData.updatedDate}</span>
+          <button class="btn btn-outline btn-add-mat" style="font-size:12px;" onclick="openAddMaterialDirectModal()">＋ 新規材料を追加</button>
+        </div>
       </div>
       <div class="table-section">
         <table>
@@ -804,7 +867,6 @@
 
     tbody.innerHTML = rowsHtml || '<tr><td colspan="8" style="text-align:center; color:#94a3b8; padding:24px;">材料がまだ登録されていません。パース上をクリックするか、「＋ 新規材料を追加」から登録してください。</td></tr>';
 
-    // テーブル行のドラッグ並べ替え
     const rows = masterCard.querySelectorAll('.sortable-row');
     rows.forEach(row => {
       row.addEventListener('dragstart', (e) => {
@@ -837,7 +899,6 @@
     document.querySelectorAll('.pin').forEach(p => p.classList.remove('is-active'));
   });
 
-  // 材料写真の選択処理
   document.getElementById('inputMaterialImg').addEventListener('change', function(e) {
     const file = e.target.files[0];
     if (file) {
@@ -858,7 +919,6 @@
     document.getElementById('inputMaterialImg').value = '';
   }
 
-  // パース上をクリックしてピンを追加するモーダル
   function openAddPinModal(slideId, x, y) {
     activeSlideId = slideId;
     tempPinCoords = { x, y };
@@ -868,7 +928,6 @@
     document.getElementById('syncNote').style.display = "none";
     document.getElementById('groupMatSelect').style.display = "block";
 
-    // セレクトボックスに登録済み材料をセット
     const sel = document.getElementById('modalMatSelect');
     sel.innerHTML = '<option value="new">＋ 新しい材料として登録して配置</option>';
     projectData.materials.forEach((m, idx) => {
@@ -881,7 +940,6 @@
     document.getElementById('modalOverlay').style.display = 'flex';
   }
 
-  // 材料表から直接新規追加するモーダル
   function openAddMaterialDirectModal() {
     activeSlideId = null;
     tempPinCoords = null;
@@ -895,7 +953,6 @@
     document.getElementById('modalOverlay').style.display = 'flex';
   }
 
-  // 材料を編集するモーダル（全パース＆表で連動）
   function openEditMaterialModal(matId) {
     activeSlideId = null;
     tempPinCoords = null;
@@ -961,7 +1018,6 @@
     document.getElementById('modalOverlay').style.display = 'none';
   }
 
-  // モーダルの保存実行
   function saveModalData() {
     const customNo = document.getElementById('inputCustomNo').value.trim();
     const part = document.getElementById('inputPart').value || '未設定';
@@ -972,7 +1028,6 @@
     let targetMatId = editingMaterialId;
 
     if (editingMaterialId !== null) {
-      // 1. 既存材料の編集（全パース＆表連動）
       const mat = projectData.materials.find(m => m.id === editingMaterialId);
       if (mat) {
         mat.customNo = customNo;
@@ -983,13 +1038,10 @@
         mat.materialImg = tempMaterialImgSrc;
       }
     } else {
-      // 2. ピン追加または新規材料作成
       const selVal = document.getElementById('modalMatSelect') ? document.getElementById('modalMatSelect').value : 'new';
       
       if (activeSlideId && selVal !== 'new') {
-        // 既存材料を選択してピン配置
         targetMatId = selVal;
-        // 選択された既存材料の内容も上書き同期
         const mat = projectData.materials.find(m => m.id === selVal);
         if (mat) {
           mat.customNo = customNo;
@@ -1000,7 +1052,6 @@
           mat.materialImg = tempMaterialImgSrc;
         }
       } else {
-        // 新規材料として作成
         targetMatId = 'mat_' + Date.now() + Math.random().toString(36).substring(2, 6);
         projectData.materials.push({
           id: targetMatId,
@@ -1013,7 +1064,6 @@
         });
       }
 
-      // パース上からのピン配置だった場合、ピンをスライドに追加
       if (activeSlideId && tempPinCoords) {
         const slide = projectData.slides.find(s => s.id === activeSlideId);
         if (slide) {
@@ -1035,7 +1085,7 @@
     const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(projectData, null, 2));
     const a = document.createElement('a');
     a.href = dataStr;
-    a.download = `material_project_${new Date().toISOString().slice(0,10)}.json`;
+    a.download = `material_project_${projectData.updatedDate.replace(/\//g, '')}.json`;
     a.click();
   }
 
@@ -1047,26 +1097,9 @@
         try {
           const loaded = JSON.parse(event.target.result);
           if (loaded.slides) {
-            // 旧バージョンデータ互換性対応
-            if (!loaded.materials) {
-              loaded.materials = [];
-              loaded.slides.forEach(s => {
-                s.pins.forEach((p, pIdx) => {
-                  const mId = 'mat_' + Date.now() + Math.random().toString(36).substring(2, 6);
-                  loaded.materials.push({
-                    id: mId,
-                    customNo: p.customNo || String(pIdx + 1),
-                    part: p.part || '',
-                    specs: p.specs || '',
-                    maker: p.maker || '',
-                    url: p.url || '',
-                    materialImg: p.materialImg || null
-                  });
-                  p.materialId = mId;
-                });
-              });
-            }
             projectData = loaded;
+            if (!projectData.updatedDate) projectData.updatedDate = getTodayStr();
+            document.getElementById('projectDateInput').value = projectData.updatedDate;
             renderPages();
           }
         } catch(err) { alert('JSONの読み込みに失敗しました。'); }
@@ -1092,7 +1125,9 @@
   .btn { background: var(--primary); color: #fff; border: none; padding: 8px 16px; border-radius: 6px; font-size: 13px; font-weight: bold; cursor: pointer; }
   .pages-container { max-width: 1400px; margin: 24px auto; display: flex; flex-direction: column; gap: 32px; padding: 0 16px; }
   .page-card { background: var(--card-bg); border-radius: 8px; border: 1px solid var(--border); box-shadow: 0 4px 12px rgba(0,0,0,0.05); padding: 20px 24px; }
-  .card-title { font-size: 18px; font-weight: bold; margin-bottom: 12px; border-bottom: 1px solid #e2e8f0; padding-bottom: 8px; }
+  .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; border-bottom: 1px solid #e2e8f0; padding-bottom: 8px; }
+  .card-title { font-size: 18px; font-weight: bold; }
+  .card-date { font-size: 12px; color: #64748b; font-weight: bold; }
   .image-wrapper { position: relative; width: 100%; background: #0f172a; border-radius: 6px; overflow: visible; display: flex; justify-content: center; align-items: center; user-select: none; }
   .image-stage { position: relative; display: inline-block; line-height: 0; max-width: 100%; }
   .image-stage img { display: block; width: 100%; height: auto; pointer-events: none; }
@@ -1126,6 +1161,7 @@
 <body>
 <div class="toolbar">
   <span class="badge">閲覧専用モード</span>
+  <span style="font-size:12px; font-weight:bold; color:#475569;">更新日: ${projectData.updatedDate || getTodayStr()}</span>
   <button class="btn" onclick="window.print()">A3全ページ印刷 / PDF出力</button>
 </div>
 <div class="pages-container" id="pagesContainer"></div>
@@ -1133,11 +1169,10 @@
   const data = ${serializedData};
   const container = document.getElementById('pagesContainer');
 
-  // 各パース画面
   data.slides.forEach((slide, idx) => {
     const card = document.createElement('div');
     card.className = 'page-card';
-    card.innerHTML = '<div class="card-title">' + (slide.title || ('パース画面 ' + (idx + 1))) + '</div>';
+    card.innerHTML = '<div class="card-header"><div class="card-title">' + (slide.title || ('パース画面 ' + (idx + 1))) + '</div><div class="card-date">' + (data.updatedDate || '') + '</div></div>';
     const wrapper = document.createElement('div');
     wrapper.className = 'image-wrapper';
     if (slide.imageSrc) {
@@ -1170,10 +1205,9 @@
     container.appendChild(card);
   });
 
-  // 最終ページ：プロジェクト共通材料表
   const masterCard = document.createElement('div');
   masterCard.className = 'page-card';
-  masterCard.innerHTML = '<div class="card-title">プロジェクト共通 材料仕上表</div>';
+  masterCard.innerHTML = '<div class="card-header"><div class="card-title">プロジェクト共通 材料仕上表</div><div class="card-date">' + (data.updatedDate || '') + '</div></div>';
   let rows = '';
   data.materials.forEach((mat, idx) => {
     const no = (mat.customNo !== undefined && mat.customNo !== '') ? mat.customNo : (idx + 1);
@@ -1192,7 +1226,7 @@
     const blob = new Blob([readOnlyContent], { type: "text/html;charset=utf-8" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
-    a.download = `material_viewer_readonly_${new Date().toISOString().slice(0,10)}.html`;
+    a.download = `material_viewer_readonly_${(projectData.updatedDate || '').replace(/\//g, '')}.html`;
     a.click();
   }
 </script>
