@@ -470,7 +470,6 @@
   .action-btn-edit { color: var(--primary); cursor: pointer; background: none; border: none; font-size: 11px; font-weight: bold; text-decoration: underline; }
   .action-btn-del { color: #ef4444; cursor: pointer; background: none; border: none; font-size: 11px; text-decoration: underline; }
 
-  /* モーダル */
   .modal-overlay {
     position: fixed;
     top: 0; left: 0; width: 100%; height: 100%;
@@ -562,7 +561,6 @@
     margin-bottom: 3px;
   }
 
-  /* 過去物件アーカイブカード */
   .archive-project-card {
     border: 1px solid var(--border);
     border-radius: 6px;
@@ -750,7 +748,7 @@
   </div>
 </div>
 
-<!-- モーダル（材料ライブラリ・横断検索フィルター ＆ 個別削除） -->
+<!-- モーダル（材料ライブラリ） -->
 <div class="modal-overlay" id="libraryModalOverlay">
   <div class="modal" style="width: 780px;">
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
@@ -786,7 +784,7 @@
   </div>
 </div>
 
-<!-- モーダル（過去物件のパース＆材料表アーカイブ） -->
+<!-- モーダル（過去物件アーカイブ） -->
 <div class="modal-overlay" id="projectArchiveModalOverlay">
   <div class="modal" style="width: 840px;">
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
@@ -813,45 +811,46 @@
     return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}:${String(d.getSeconds()).padStart(2,'0')}`;
   };
 
-  const DB_NAME = 'MaterialViewer_IndexedDB_v2';
+  const DB_NAME = 'MaterialViewer_IndexedDB_v3';
   const DB_VERSION = 1;
 
   function openIndexedDB() {
-    return new Promise((resolve, reject) => {
-      const request = indexedDB.open(DB_NAME, DB_VERSION);
-      request.onupgradeneeded = (e) => {
-        const db = e.target.result;
-        if (!db.objectStoreNames.contains('draft')) db.createObjectStore('draft');
-        if (!db.objectStoreNames.contains('archives')) db.createObjectStore('archives', { keyPath: 'id' });
-        if (!db.objectStoreNames.contains('history')) db.createObjectStore('history', { keyPath: 'id' });
-      };
-      request.onsuccess = () => resolve(request.result);
-      request.onerror = () => reject(request.error);
+    return new Promise((resolve) => {
+      try {
+        const request = indexedDB.open(DB_NAME, DB_VERSION);
+        request.onupgradeneeded = (e) => {
+          const db = e.target.result;
+          if (!db.objectStoreNames.contains('draft')) db.createObjectStore('draft');
+          if (!db.objectStoreNames.contains('archives')) db.createObjectStore('archives', { keyPath: 'id' });
+          if (!db.objectStoreNames.contains('history')) db.createObjectStore('history', { keyPath: 'id' });
+        };
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => resolve(null);
+        request.onblocked = () => resolve(null);
+      } catch(e) { resolve(null); }
     });
   }
 
   async function idbSaveDraft(data) {
     try {
       const db = await openIndexedDB();
-      return new Promise((resolve, reject) => {
-        const tx = db.transaction('draft', 'readwrite');
-        const store = tx.objectStore('draft');
-        store.put(data, 'current_draft');
-        tx.oncomplete = () => resolve();
-        tx.onerror = () => reject(tx.error);
-      });
-    } catch(e) { console.error("IDB Draft Save Error", e); }
+      if (!db) return;
+      const tx = db.transaction('draft', 'readwrite');
+      const store = tx.objectStore('draft');
+      store.put(data, 'current_draft');
+    } catch(e) {}
   }
 
   async function idbLoadDraft() {
     try {
       const db = await openIndexedDB();
-      return new Promise((resolve, reject) => {
+      if (!db) return null;
+      return new Promise((resolve) => {
         const tx = db.transaction('draft', 'readonly');
         const store = tx.objectStore('draft');
         const req = store.get('current_draft');
-        req.onsuccess = () => resolve(req.result);
-        req.onerror = () => reject(req.error);
+        req.onsuccess = () => resolve(req.result || null);
+        req.onerror = () => resolve(null);
       });
     } catch(e) { return null; }
   }
@@ -859,25 +858,23 @@
   async function idbSaveArchive(archiveItem) {
     try {
       const db = await openIndexedDB();
-      return new Promise((resolve, reject) => {
-        const tx = db.transaction('archives', 'readwrite');
-        const store = tx.objectStore('archives');
-        store.put(archiveItem);
-        tx.oncomplete = () => resolve();
-        tx.onerror = () => reject(tx.error);
-      });
+      if (!db) return;
+      const tx = db.transaction('archives', 'readwrite');
+      const store = tx.objectStore('archives');
+      store.put(archiveItem);
     } catch(e) {}
   }
 
   async function idbGetAllArchives() {
     try {
       const db = await openIndexedDB();
-      return new Promise((resolve, reject) => {
+      if (!db) return [];
+      return new Promise((resolve) => {
         const tx = db.transaction('archives', 'readonly');
         const store = tx.objectStore('archives');
         const req = store.getAll();
         req.onsuccess = () => resolve(req.result || []);
-        req.onerror = () => reject(req.error);
+        req.onerror = () => resolve([]);
       });
     } catch(e) { return []; }
   }
@@ -885,38 +882,33 @@
   async function idbDeleteArchive(id) {
     try {
       const db = await openIndexedDB();
-      return new Promise((resolve, reject) => {
-        const tx = db.transaction('archives', 'readwrite');
-        const store = tx.objectStore('archives');
-        store.delete(id);
-        tx.oncomplete = () => resolve();
-        tx.onerror = () => reject(tx.error);
-      });
+      if (!db) return;
+      const tx = db.transaction('archives', 'readwrite');
+      const store = tx.objectStore('archives');
+      store.delete(id);
     } catch(e) {}
   }
 
   async function idbSaveHistory(historyItem) {
     try {
       const db = await openIndexedDB();
-      return new Promise((resolve, reject) => {
-        const tx = db.transaction('history', 'readwrite');
-        const store = tx.objectStore('history');
-        store.put(historyItem);
-        tx.oncomplete = () => resolve();
-        tx.onerror = () => reject(tx.error);
-      });
+      if (!db) return;
+      const tx = db.transaction('history', 'readwrite');
+      const store = tx.objectStore('history');
+      store.put(historyItem);
     } catch(e) {}
   }
 
   async function idbGetAllHistory() {
     try {
       const db = await openIndexedDB();
-      return new Promise((resolve, reject) => {
+      if (!db) return [];
+      return new Promise((resolve) => {
         const tx = db.transaction('history', 'readonly');
         const store = tx.objectStore('history');
         const req = store.getAll();
         req.onsuccess = () => resolve(req.result || []);
-        req.onerror = () => reject(req.error);
+        req.onerror = () => resolve([]);
       });
     } catch(e) { return []; }
   }
@@ -924,29 +916,24 @@
   async function idbDeleteHistory(id) {
     try {
       const db = await openIndexedDB();
-      return new Promise((resolve, reject) => {
-        const tx = db.transaction('history', 'readwrite');
-        const store = tx.objectStore('history');
-        store.delete(id);
-        tx.oncomplete = () => resolve();
-        tx.onerror = () => reject(tx.error);
-      });
+      if (!db) return;
+      const tx = db.transaction('history', 'readwrite');
+      const store = tx.objectStore('history');
+      store.delete(id);
     } catch(e) {}
   }
 
   async function idbClearAllHistory() {
     try {
       const db = await openIndexedDB();
-      return new Promise((resolve, reject) => {
-        const tx = db.transaction('history', 'readwrite');
-        const store = tx.objectStore('history');
-        store.clear();
-        tx.oncomplete = () => resolve();
-        tx.onerror = () => reject(tx.error);
-      });
+      if (!db) return;
+      const tx = db.transaction('history', 'readwrite');
+      const store = tx.objectStore('history');
+      store.clear();
     } catch(e) {}
   }
 
+  // メインデータ構造
   let projectData = {
     projectName: '新築分譲マンション計画',
     updatedDate: getTodayStr(),
@@ -962,8 +949,6 @@
   let selectedSlideIds = new Set();
   let isLibraryForSingleApply = false;
   let cachedHistoryList = [];
-  
-  // ドラッグ操作直後のクリック誤爆防止タイムスタンプ
   let lastPinDragEndTime = 0;
 
   function showToast(msg) {
@@ -1038,17 +1023,26 @@
     }
   }
 
+  // 即時初期化（フリーズ防止）
   window.addEventListener('DOMContentLoaded', async () => {
+    // まずデフォルトで即時描画
+    if (projectData.slides.length === 0) {
+      projectData.slides.push({
+        id: Date.now() + Math.random(),
+        title: "外観・アプローチ パース",
+        imageSrc: null,
+        pins: []
+      });
+    }
+    renderPages();
+
+    // 非同期でIndexedDBから安全に復元
     const loadedDraft = await idbLoadDraft();
     if (loadedDraft && loadedDraft.slides && loadedDraft.slides.length > 0) {
       projectData = loadedDraft;
       document.getElementById('projectNameInput').value = projectData.projectName || '新築分譲マンション計画';
       document.getElementById('projectDateInput').value = projectData.updatedDate || getTodayStr();
       renderPages();
-    } else {
-      document.getElementById('projectNameInput').value = projectData.projectName;
-      document.getElementById('projectDateInput').value = projectData.updatedDate;
-      addEmptySlide("外観・アプローチ パース");
     }
     setupLassoSelection();
   });
@@ -1174,8 +1168,6 @@
       box.style.width = `${width}px`;
       box.style.height = `${height}px`;
 
-      handleAutoScroll(e.clientY);
-
       const selRect = { left, top, right: left + width, bottom: top + height };
       document.querySelectorAll('.page-card[data-slide-id]').forEach(card => {
         const sId = parseFloat(card.dataset.slideId);
@@ -1196,7 +1188,6 @@
       if (!isSelecting) return;
       isSelecting = false;
       box.style.display = 'none';
-      stopAutoScroll();
     });
   }
 
@@ -1723,6 +1714,7 @@
   // --- メイン画面描画 ---
   function renderPages() {
     const container = document.getElementById('pagesContainer');
+    if (!container) return;
     container.innerHTML = "";
 
     // 1. 各パース画面
@@ -1751,13 +1743,8 @@
         e.dataTransfer.setData('text/plain', sIndex);
       });
 
-      header.addEventListener('drag', (e) => {
-        if (e.clientY !== 0) handleAutoScroll(e.clientY);
-      });
-
       header.addEventListener('dragend', () => {
         card.classList.remove('dragging');
-        stopAutoScroll();
         document.querySelectorAll('.page-card').forEach(c => {
           c.classList.remove('drag-over-top', 'drag-over-bottom');
         });
@@ -1765,7 +1752,6 @@
 
       card.addEventListener('dragover', (e) => {
         e.preventDefault();
-        handleAutoScroll(e.clientY);
         const rect = card.getBoundingClientRect();
         const mid = rect.top + rect.height / 2;
         if (e.clientY < mid) {
@@ -1783,7 +1769,6 @@
 
       card.addEventListener('drop', (e) => {
         e.preventDefault();
-        stopAutoScroll();
         const isTop = card.classList.contains('drag-over-top');
         card.classList.remove('drag-over-top', 'drag-over-bottom');
 
@@ -1812,7 +1797,7 @@
       header.innerHTML = `
         <div class="card-title-group">
           <span class="card-badge">パース画面 ${sIndex + 1}</span>
-          <input class="card-title-input" type="text" value="${slide.title}" onchange="updateSlideTitle('${slide.id}', this.value)" placeholder="パース名を入力">
+          <input class="card-title-input" type="text" value="${slide.title || ''}" onchange="updateSlideTitle('${slide.id}', this.value)" placeholder="パース名を入力">
         </div>
         <div class="card-actions">
           <span class="card-date-display">${projectData.updatedDate}</span>
@@ -1838,7 +1823,6 @@
         imgStage.appendChild(img);
 
         imgStage.addEventListener('click', (e) => {
-          // ドラッグ直後（350ms以内）はクリック誤爆を完全に無視する
           if (Date.now() - lastPinDragEndTime < 350) return;
           if (e.target.closest('.pin')) return;
           
@@ -1859,7 +1843,7 @@
           }
         });
 
-        slide.pins.forEach((pin) => {
+        (slide.pins || []).forEach((pin) => {
           const mat = projectData.materials.find(m => String(m.id) === String(pin.materialId));
           if (!mat) return;
 
@@ -1917,14 +1901,12 @@
               if (floatingPin) {
                 floatingPin.style.left = `${ev.clientX}px`;
                 floatingPin.style.top = `${ev.clientY}px`;
-                handleAutoScroll(ev.clientY);
               }
             };
 
             const onPointerUp = (ev) => {
               if (!isDragging) return;
               isDragging = false;
-              stopAutoScroll();
 
               window.removeEventListener('keydown', onKeyChange);
               window.removeEventListener('keyup', onKeyChange);
@@ -1938,8 +1920,7 @@
               pinEl.style.opacity = '1';
 
               if (moved) {
-                lastPinDragEndTime = Date.now(); // ドラッグ完了時刻を記録して誤爆防止
-                
+                lastPinDragEndTime = Date.now();
                 const elemBelow = document.elementFromPoint(ev.clientX, ev.clientY);
                 const targetStage = elemBelow ? elemBelow.closest('.image-stage') : null;
 
@@ -2047,7 +2028,7 @@
       container.appendChild(card);
     });
 
-    // 2. 共通材料仕上表（「最終ページ」の文字は削除済み）
+    // 2. 共通材料仕上表
     const masterCard = document.createElement('div');
     masterCard.className = 'page-card master-card';
     masterCard.draggable = false;
@@ -2092,7 +2073,7 @@
     const tbody = masterCard.querySelector('#masterTableBody');
     let rowsHtml = '';
 
-    projectData.materials.forEach((mat, mIndex) => {
+    (projectData.materials || []).forEach((mat, mIndex) => {
       const displayNo = (mat.customNo !== undefined && mat.customNo !== '') ? mat.customNo : (mIndex + 1);
       rowsHtml += `
         <tr class="sortable-row" draggable="true" data-m-index="${mIndex}">
@@ -2126,23 +2107,19 @@
         row.classList.add('row-dragging');
         e.dataTransfer.setData('text/plain', row.dataset.mIndex);
       });
-      row.addEventListener('drag', (e) => {
-        if (e.clientY !== 0) handleAutoScroll(e.clientY);
-      });
       row.addEventListener('dragend', () => {
         row.classList.remove('row-dragging');
-        stopAutoScroll();
         rows.forEach(r => r.classList.remove('row-drag-over'));
       });
       row.addEventListener('dragover', (e) => {
         e.preventDefault();
-        handleAutoScroll(e.clientY);
         row.classList.add('row-drag-over');
       });
-      row.addEventListener('dragleave', () => row.classList.remove('row-drag-over'));
+      row.addEventListener('dragleave', () => {
+        row.classList.remove('row-drag-over');
+      });
       row.addEventListener('drop', (e) => {
         e.preventDefault();
-        stopAutoScroll();
         row.classList.remove('row-drag-over');
         const fromIdx = parseInt(e.dataTransfer.getData('text/plain'), 10);
         const toIdx = parseInt(row.dataset.mIndex, 10);
