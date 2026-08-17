@@ -55,6 +55,8 @@
   .btn-secondary:hover { background: #475569; }
   .btn-success { background: #059669; }
   .btn-success:hover { background: #047857; }
+  .btn-save { background: #2563eb; }
+  .btn-save:hover { background: #1d4ed8; }
   .btn-print { background: #0284c7; }
   .btn-print:hover { background: #0369a1; }
   .btn-outline {
@@ -87,6 +89,17 @@
     font-weight: bold;
     color: #1e293b;
     outline: none;
+  }
+
+  .auto-save-indicator {
+    font-size: 11px;
+    color: #059669;
+    font-weight: bold;
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    margin-right: 4px;
+    transition: opacity 0.2s;
   }
 
   .toast-notification {
@@ -614,6 +627,8 @@
   <button class="btn btn-outline" style="background:#f0fdf4; color:#166534; border-color:#bbf7d0;" onclick="openLibraryModal()" title="過去に使った全材料を検索・管理">📚 材料ライブラリ検索</button>
 
   <div style="margin-left: auto; display: flex; gap: 6px; align-items: center; flex-wrap: wrap;">
+    <button class="btn btn-save" onclick="manualSaveDraft()" title="現在の作業状態を直ちに保存 (Ctrl + S)">💾 下書き保存 (Ctrl+S)</button>
+    <div class="auto-save-indicator" id="autoSaveIndicator">✓ 自動保存済</div>
     <button class="btn btn-success" onclick="exportReadOnlyHTML()">クライアント用 閲覧HTML</button>
     <button class="btn btn-secondary" onclick="exportProjectJSON()">データ保存 (JSON)</button>
     <label class="btn btn-secondary file-label">
@@ -622,7 +637,7 @@
     </label>
     <button class="btn btn-print" onclick="printTableOnly()" title="材料仕上表のページのみ印刷・PDF化">📄 材料表のみ印刷</button>
     <button class="btn" onclick="printAllPages()" title="全パース＋材料表を一括印刷">A3全ページ印刷</button>
-    <button class="btn btn-outline" style="color:#ef4444; border-color:#fecaca;" onclick="resetProjectDraft()" title="新規作成">新規クリア</button>
+    <button class="btn btn-outline" style="color:#ef4444; border-color:#fecaca;" onclick="resetProjectDraft()" title="現在の作業下書きを初期化して新規作成">🗑️ 下書きクリア</button>
   </div>
 </div>
 
@@ -741,7 +756,13 @@
     return `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')}`;
   };
 
+  const getTimeStr = () => {
+    const d = new Date();
+    return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}:${String(d.getSeconds()).padStart(2,'0')}`;
+  };
+
   const STORAGE_KEY_HISTORY = 'arch_material_history_lib_fast';
+  const STORAGE_KEY_DRAFT = 'arch_material_draft_fast_v1';
 
   let projectData = {
     projectName: '新築分譲マンション計画',
@@ -770,7 +791,71 @@
     }, 2400);
   }
 
-  // テキスト主体の軽量履歴
+  // --- 自動保存（Auto-Save & Safe Fallback） ---
+  function saveCurrentDraft() {
+    try {
+      localStorage.setItem(STORAGE_KEY_DRAFT, JSON.stringify(projectData));
+      const ind = document.getElementById('autoSaveIndicator');
+      if (ind) {
+        ind.textContent = `✓ 自動保存済 (${getTimeStr()})`;
+        ind.style.opacity = '1';
+      }
+    } catch(e) {
+      // 万が一画像サイズ等でQuotaExceededErrorが発生した場合、画像データのみ除外して構造・ピン・材料表を確実に保存
+      try {
+        const lightCopy = JSON.parse(JSON.stringify(projectData));
+        lightCopy.slides.forEach(s => { s.imageSrc = null; });
+        localStorage.setItem(STORAGE_KEY_DRAFT, JSON.stringify(lightCopy));
+        const ind = document.getElementById('autoSaveIndicator');
+        if (ind) {
+          ind.textContent = `✓ 下書き保存済 (文字・ピン)`;
+          ind.style.opacity = '1';
+        }
+      } catch(err) {}
+    }
+  }
+
+  function loadCurrentDraft() {
+    try {
+      const draft = localStorage.getItem(STORAGE_KEY_DRAFT);
+      if (draft) {
+        const parsed = JSON.parse(draft);
+        if (parsed && Array.isArray(parsed.slides) && Array.isArray(parsed.materials)) {
+          projectData = parsed;
+          return true;
+        }
+      }
+    } catch(e) {}
+    return false;
+  }
+
+  function manualSaveDraft() {
+    saveCurrentDraft();
+    showToast(`💾 下書きを保存しました (${getTimeStr()})`);
+  }
+
+  function resetProjectDraft() {
+    if (confirm("現在の作業下書きを消去し、真っ新な状態から新規作成しますか？\n（※過去の材料ライブラリ履歴は保持されます）")) {
+      try { localStorage.removeItem(STORAGE_KEY_DRAFT); } catch(e) {}
+      projectData = {
+        projectName: '新築分譲マンション計画',
+        updatedDate: getTodayStr(),
+        materials: [],
+        slides: [{
+          id: Date.now() + Math.random(),
+          title: "外観・アプローチ パース",
+          imageSrc: null,
+          pins: []
+        }]
+      };
+      document.getElementById('projectNameInput').value = projectData.projectName;
+      document.getElementById('projectDateInput').value = projectData.updatedDate;
+      renderPages();
+      showToast("🗑️ 下書きをクリアしました");
+    }
+  }
+
+  // --- 材料ライブラリ（履歴） ---
   function getMaterialHistory() {
     try {
       return JSON.parse(localStorage.getItem(STORAGE_KEY_HISTORY)) || [];
@@ -800,43 +885,47 @@
     } catch(e) {}
   }
 
-  function resetProjectDraft() {
-    if (confirm("現在の作業内容をクリアし、新規作成しますか？")) {
-      projectData = {
-        projectName: '新築分譲マンション計画',
-        updatedDate: getTodayStr(),
-        materials: [],
-        slides: [{
-          id: Date.now() + Math.random(),
-          title: "外観・アプローチ パース",
-          imageSrc: null,
-          pins: []
-        }]
-      };
-      document.getElementById('projectNameInput').value = projectData.projectName;
-      document.getElementById('projectDateInput').value = projectData.updatedDate;
-      renderPages();
-      showToast("新規作成状態にリセットしました");
+  function deleteHistoryItem(historyId) {
+    let history = getMaterialHistory();
+    history = history.filter(h => h.id !== historyId);
+    try { localStorage.setItem(STORAGE_KEY_HISTORY, JSON.stringify(history)); } catch(e) {}
+    filterLibraryItems();
+    showToast("🗑️ 材料履歴を削除しました");
+  }
+
+  function clearAllMaterialHistory() {
+    if (confirm("これまでに保存された過去の材料ライブラリ履歴をすべて消去しますか？")) {
+      try { localStorage.removeItem(STORAGE_KEY_HISTORY); } catch(e) {}
+      openLibraryModal(isLibraryForSingleApply);
+      showToast("🗑️ 材料履歴を全消去しました");
     }
   }
 
-  // 初期化
+  // --- 初期化 ---
   window.addEventListener('DOMContentLoaded', () => {
-    document.getElementById('projectNameInput').value = projectData.projectName;
-    document.getElementById('projectDateInput').value = projectData.updatedDate;
-    if (projectData.slides.length === 0) {
-      projectData.slides.push({
+    const hasDraft = loadCurrentDraft();
+    document.getElementById('projectNameInput').value = projectData.projectName || '新築分譲マンション計画';
+    document.getElementById('projectDateInput').value = projectData.updatedDate || getTodayStr();
+
+    if (!hasDraft || !projectData.slides || projectData.slides.length === 0) {
+      projectData.slides = [{
         id: Date.now() + Math.random(),
         title: "外観・アプローチ パース",
         imageSrc: null,
         pins: []
-      });
+      }];
     }
     renderPages();
     setupLassoSelection();
   });
 
   window.addEventListener('keydown', (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
+      e.preventDefault();
+      manualSaveDraft();
+      return;
+    }
+
     if (e.key === 'Escape') {
       cancelCopyMode();
       clearSelection();
@@ -868,6 +957,7 @@
 
   function updateProjectName(val) {
     projectData.projectName = val || '未設定物件';
+    saveCurrentDraft();
   }
 
   function updateProjectDate(val) {
@@ -902,7 +992,7 @@
   function deleteSelectedSlides() {
     const count = selectedSlideIds.size;
     if (count === 0) return;
-    if (confirm(`選択中の ${count} 件のパース画面を削除しますか？\n（※材料データ自体は保持されます）`)) {
+    if (confirm(`選択中の ${count} 件のパース画面を削除しますか？\n（※共通材料データ自体は保持されます）`)) {
       projectData.slides = projectData.slides.filter(s => !selectedSlideIds.has(s.id));
       selectedSlideIds.clear();
       renderPages();
@@ -933,6 +1023,7 @@
 
     window.addEventListener('mousemove', (e) => {
       if (!isSelecting) return;
+
       const curX = e.clientX;
       const curY = e.clientY;
 
@@ -1040,7 +1131,10 @@
 
   function updateSlideTitle(slideId, newTitle) {
     const s = projectData.slides.find(item => String(item.id) === String(slideId));
-    if (s) s.title = newTitle;
+    if (s) {
+      s.title = newTitle;
+      saveCurrentDraft();
+    }
   }
 
   function updateMaterialNo(matId, val) {
@@ -1255,22 +1349,6 @@
       `;
     });
     container.innerHTML = html;
-  }
-
-  function deleteHistoryItem(historyId) {
-    let history = getMaterialHistory();
-    history = history.filter(h => h.id !== historyId);
-    localStorage.setItem(STORAGE_KEY_HISTORY, JSON.stringify(history));
-    filterLibraryItems();
-    showToast("🗑️ 材料履歴を削除しました");
-  }
-
-  function clearAllMaterialHistory() {
-    if (confirm("これまでに保存された過去の材料ライブラリ履歴をすべて消去しますか？")) {
-      localStorage.removeItem(STORAGE_KEY_HISTORY);
-      openLibraryModal(isLibraryForSingleApply);
-      showToast("🗑️ 材料履歴を全消去しました");
-    }
   }
 
   function applySingleLibraryItem(historyId) {
@@ -1757,6 +1835,7 @@
     });
 
     container.appendChild(masterCard);
+    saveCurrentDraft();
   }
 
   document.addEventListener('click', () => {
