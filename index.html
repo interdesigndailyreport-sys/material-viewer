@@ -585,6 +585,59 @@
     color: #334155;
   }
 
+  /* 操作ガイド（ヘルプ）モーダル用スタイル */
+  .help-section-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+    margin: 12px 0;
+  }
+  .help-card {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    padding: 14px;
+  }
+  .help-card-title {
+    font-size: 13px;
+    font-weight: bold;
+    color: var(--primary);
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .help-list {
+    list-style: none;
+    font-size: 11.5px;
+    line-height: 1.6;
+    color: #334155;
+  }
+  .help-list li {
+    margin-bottom: 6px;
+    position: relative;
+    padding-left: 14px;
+  }
+  .help-list li::before {
+    content: "•";
+    position: absolute;
+    left: 0;
+    color: var(--primary);
+    font-weight: bold;
+  }
+  .help-key {
+    display: inline-block;
+    background: #ffffff;
+    border: 1px solid #cbd5e1;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.08);
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-family: monospace;
+    font-size: 11px;
+    font-weight: bold;
+    color: #0f172a;
+  }
+
   @page { size: A3 landscape; margin: 10mm; }
   @media print {
     body { background: #fff; padding: 0; }
@@ -650,6 +703,8 @@
 
   <button class="btn btn-outline" style="background:#eff6ff; color:#1e40af; border-color:#bfdbfe;" onclick="openProjectTableArchiveModal()" title="前回の物件で完成した材料表を丸ごと反映">📂 過去物件の材料表を一括呼出</button>
   <button class="btn btn-outline" style="background:#f0fdf4; color:#166534; border-color:#bbf7d0;" onclick="openLibraryModal()" title="過去に使った全材料を個別検索">📚 材料ライブラリ検索</button>
+
+  <button class="btn btn-outline" style="background:#fffbeb; color:#b45309; border-color:#fde68a;" onclick="openHelpModal()" title="操作方法・ショートカット一覧を表示">❓ 使い方</button>
 
   <div style="margin-left: auto; display: flex; gap: 6px; align-items: center; flex-wrap: wrap;">
     <button class="btn btn-save" onclick="manualSaveDraft()" title="現在の作業状態を直ちに保存 (Ctrl + S)">💾 下書き保存 (Ctrl+S)</button>
@@ -791,6 +846,62 @@
   </div>
 </div>
 
+<!-- モーダル（操作ガイド・ヘルプ） -->
+<div class="modal-overlay" id="helpModalOverlay">
+  <div class="modal" style="width: 820px;">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; border-bottom:1px solid #e2e8f0; padding-bottom:8px;">
+      <h3 style="margin:0; font-size:16px;">❓ 操作方法・ショートカット一覧</h3>
+      <span style="font-size:12px; color:#64748b;">誰でも直感的に作成・管理できる便利機能まとめ</span>
+    </div>
+
+    <div class="help-section-grid">
+      <div class="help-card">
+        <div class="help-card-title">📌 1. パースの追加とピンの配置</div>
+        <ul class="help-list">
+          <li><strong>パース追加:</strong> 上部ボタンから複数画像をドラッグ＆ドロップまたは一括選択で登録できます。</li>
+          <li><strong>ピンの配置:</strong> パース画像の任意の位置を<strong>クリック</strong>すると、仕様入力画面が開きピンが立ちます。</li>
+          <li><strong>仕様連動:</strong> パースと材料表は完全同期。番号や仕様を変更すると全パースに一括反映されます。</li>
+        </ul>
+      </div>
+
+      <div class="help-card">
+        <div class="help-card-title">✨ 2. ピンの直感的ドラッグ＆複製</div>
+        <ul class="help-list">
+          <li><strong>ピンの移動:</strong> 番号ピンをそのままドラッグして自由に位置を動かせます。</li>
+          <li><strong>上下スクロール:</strong> ドラッグ中に画面の上端・下端に近づけると<strong>自動スクロール</strong>します。</li>
+          <li><strong>Ctrl＋ドラッグで複製:</strong> <span class="help-key">Ctrl</span>（Macは<span class="help-key">Cmd</span>）を押しながらドラッグすると、ピンが即座に複製されます。</li>
+        </ul>
+      </div>
+
+      <div class="help-card">
+        <div class="help-card-title">🗂️ 3. パースカードの複製・削除・並べ替え</div>
+        <ul class="help-list">
+          <li><strong>直下に複製:</strong> カード右上の「📋 複製」ボタンで、画像とピンを保ったまま真下にコピーできます。</li>
+          <li><strong>ヘッダー並べ替え:</strong> カード上部を掴んで上下にドラッグ＆ドロップで並べ替え可能です。</li>
+          <li><strong>Deleteキー削除:</strong> カードの白枠をクリックして選択、または背景ドラッグの<strong>範囲指定枠</strong>で囲んで <span class="help-key">Delete</span> キーを押すと一括削除できます。</li>
+        </ul>
+      </div>
+
+      <div class="help-card">
+        <div class="help-card-title">📚 4. 過去物件の材料表・履歴の再利用</div>
+        <ul class="help-list">
+          <li><strong>過去物件から一括呼出:</strong> 「📂 過去物件の材料表を一括呼出」から前回の物件セットを丸ごと上書き・追加できます。</li>
+          <li><strong>ライブラリ検索:</strong> 「📚 材料ライブラリ検索」から過去の材料（品番・メーカー・部位）を横断検索して引用できます。</li>
+          <li><strong>表の全コピー:</strong> 「📋 表を全コピー」でExcelやスプレッドシートに一発貼り付けできます。</li>
+        </ul>
+      </div>
+    </div>
+
+    <div style="background:#eff6ff; border:1px solid #bfdbfe; border-radius:6px; padding:10px 14px; font-size:12px; color:#1e40af; display:flex; justify-content:space-between; align-items:center;">
+      <span>💾 <strong>自動保存＆ショートカット:</strong> 作業内容は自動保存されます。手動で即時保存したい時は <span class="help-key">Ctrl</span> + <span class="help-key">S</span> を押してください。</span>
+    </div>
+
+    <div class="modal-actions" style="margin-top:14px;">
+      <button class="btn btn-secondary" onclick="closeHelpModal()">閉じる (Esc)</button>
+    </div>
+  </div>
+</div>
+
 <script>
   const getTodayStr = () => {
     const d = new Date();
@@ -807,7 +918,6 @@
   const STORAGE_KEY_HISTORY = 'arch_mat_history_v4';
   const STORAGE_KEY_TABLE_ARCHIVES = 'arch_mat_completed_tables_v4';
 
-  // --- IndexedDB 安全ヘルパー（画像保持用） ---
   function openSafeDB() {
     return new Promise((resolve) => {
       try {
@@ -865,7 +975,6 @@
     } catch (e) {}
   }
 
-  // --- データ構造 ---
   let projectData = {
     projectName: '新築分譲マンション計画',
     updatedDate: getTodayStr(),
@@ -959,6 +1068,15 @@
       renderPages();
       showToast("🗑️ 下書きをクリアしました");
     }
+  }
+
+  // --- ヘルプモーダル制御 ---
+  function openHelpModal() {
+    document.getElementById('helpModalOverlay').style.display = 'flex';
+  }
+
+  function closeHelpModal() {
+    document.getElementById('helpModalOverlay').style.display = 'none';
   }
 
   // --- 完成材料表の一括アーカイブ管理 ---
@@ -1117,7 +1235,6 @@
 
   // --- 初期化 ---
   window.addEventListener('DOMContentLoaded', async () => {
-    // 1. 初期描画
     if (projectData.slides.length === 0) {
       projectData.slides.push({
         id: Date.now() + Math.random(),
@@ -1131,7 +1248,6 @@
     renderPages();
     setupLassoSelection();
 
-    // 2. IndexedDBから安全にパース画像・下書きを復元
     const saved = await loadProjectFromDB();
     if (saved && saved.slides && saved.slides.length > 0) {
       projectData = saved;
@@ -1153,6 +1269,7 @@
       clearSelection();
       closeLibraryModal();
       closeProjectTableArchiveModal();
+      closeHelpModal();
       return;
     }
 
@@ -1247,6 +1364,7 @@
 
     window.addEventListener('mousemove', (e) => {
       if (!isSelecting) return;
+
       const curX = e.clientX;
       const curY = e.clientY;
 
@@ -1833,7 +1951,7 @@
               if (floatingPin) {
                 floatingPin.style.left = `${ev.clientX}px`;
                 floatingPin.style.top = `${ev.clientY}px`;
-                updateAutoScroll(ev.clientY); // ドラッグ中の上下スクロール
+                updateAutoScroll(ev.clientY);
               }
             };
 
@@ -1918,7 +2036,7 @@
           popup.addEventListener('pointerdown', (e) => e.stopPropagation());
 
           popup.innerHTML = `
-            ${mat.materialImg ? `<div class="popup-mat-img"><img src="${mat.materialImg}" alt="マテリアル写真"></div>` : ''}
+            ${mat.materialImg ? `<div class="popup-mat-img"><img src="${mat.materialImg}" alt="材料写真"></div>` : ''}
             <div class="popup-title">No.${displayNo} ${mat.part}</div>
             <div>${mat.specs.replace(/\n/g, '<br>')}</div>
             ${mat.maker ? `<div style="color:#94a3b8; margin-top:4px;">/${mat.maker}</div>` : ''}
