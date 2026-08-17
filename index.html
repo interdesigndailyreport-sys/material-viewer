@@ -739,7 +739,7 @@
     color: #0f172a;
   }
 
-  /* 印刷レイアウト（A3横フル活用・パース最大化） */
+  /* 印刷レイアウト（A3横・ピン視認性強化） */
   @page { size: A3 landscape; margin: 8mm 10mm; }
   @media print {
     body { background: #fff !important; padding: 0 !important; }
@@ -797,12 +797,17 @@
       max-width: 100% !important;
       object-fit: contain !important;
     }
+
+    /* 印刷時のピン：暗いパース・明るいパースどちらでも視認性抜群のロイヤルブルー＋白文字＋外枠 */
     .pin {
-      background: #000 !important;
-      color: #fff !important;
-      border: 1.5px solid #000 !important;
-      -webkit-print-color-adjust: exact;
-      print-color-adjust: exact;
+      background: #2563eb !important;
+      color: #ffffff !important;
+      border: 2px solid #ffffff !important;
+      box-shadow: 0 0 0 1.5px #0f172a, 0 2px 6px rgba(0,0,0,0.6) !important;
+      font-weight: 900 !important;
+      font-size: 12.5px !important;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
     }
     .pin-popup { display: none !important; }
     .no-input { border: none !important; background: transparent !important; padding: 0 !important; }
@@ -815,7 +820,6 @@
 <body>
 
 <div class="toolbar">
-  <!-- Undo（戻る）ボタン -->
   <button class="btn btn-undo" onclick="undo()" title="1つ前の操作に戻す (Ctrl + Z)">↩ 戻る (Ctrl+Z)</button>
 
   <label class="btn file-label">
@@ -834,9 +838,7 @@
     <input type="text" class="meta-input" id="projectDateInput" style="width: 80px;" onchange="updateProjectDate(this.value)">
   </div>
 
-  <!-- 材料表ジャンプボタン -->
   <button class="btn btn-jump" onclick="scrollToMasterTable()" title="ページ最下部の共通材料表まで一気に移動">📋 材料表へ移動</button>
-
   <button class="btn btn-save-slot" onclick="openSaveSlotModal()" title="ゲームのセーブデータ画面のように一覧から選択・保存・読込">🎮 セーブ / ロード画面</button>
   <button class="btn btn-outline" style="background:#f0fdf4; color:#166534; border-color:#bbf7d0;" onclick="openLibraryModal()" title="過去に使った全材料を個別検索">📚 材料ライブラリ検索</button>
   <button class="btn btn-outline" style="background:#fffbeb; color:#b45309; border-color:#fde68a;" onclick="openHelpModal()" title="操作方法・ショートカット一覧を表示">❓ 使い方</button>
@@ -1054,7 +1056,7 @@
     </div>
 
     <div style="background:#eff6ff; border:1px solid #bfdbfe; border-radius:6px; padding:10px 14px; font-size:12px; color:#1e40af; display:flex; justify-content:space-between; align-items:center;">
-      <span>💾 <strong>自動保存＆ショートカット:</strong> 作業内容は自動保存されます。手動保存は <span class="help-key">Ctrl</span> + <span class="help-key">S</span>、元に戻すは <span class="help-key">Ctrl</span> + <span class="help-key">Z</span> です。</span>
+      <span>💾 <strong>自動保存＆ショートカット:</strong> パース画像も含め自動保存されます。即時手動保存は <span class="help-key">Ctrl</span> + <span class="help-key">S</span>、元に戻すは <span class="help-key">Ctrl</span> + <span class="help-key">Z</span> です。</span>
     </div>
 
     <div class="modal-actions" style="margin-top:14px;">
@@ -1074,9 +1076,9 @@
     return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}:${String(d.getSeconds()).padStart(2,'0')}`;
   };
 
-  const DB_NAME = 'ArchViewer_GameSlots_DB_v1';
+  const DB_NAME = 'ArchViewer_GameSlots_DB_v2';
   const DB_VERSION = 1;
-  const STORAGE_KEY_HISTORY = 'arch_mat_history_v6';
+  const STORAGE_KEY_HISTORY = 'arch_mat_history_master_v7';
 
   // --- Undo（元に戻す）履歴スタック ---
   const undoStack = [];
@@ -1105,7 +1107,7 @@
         projectData = previousState;
         document.getElementById('projectNameInput').value = projectData.projectName || '新築分譲マンション計画';
         document.getElementById('projectDateInput').value = projectData.updatedDate || getTodayStr();
-        renderPages(false); // 描画（Undoスタックの二重追加を避ける）
+        renderPages(false);
         saveCurrentDraft();
         showToast("↩ 1つ前の操作に戻しました");
       }
@@ -1114,7 +1116,6 @@
     }
   }
 
-  // 材料表へのスムーズスクロールジャンプ
   function scrollToMasterTable() {
     const masterCard = document.querySelector('.master-card');
     if (masterCard) {
@@ -1122,7 +1123,7 @@
     }
   }
 
-  // --- IndexedDB 大容量安全ストレージ（セーブスロット・画像完全保持） ---
+  // --- IndexedDB 大容量ストレージ ---
   function openSafeDB() {
     return new Promise((resolve) => {
       try {
@@ -1178,7 +1179,7 @@
   async function idbSaveSlotItem(slot) {
     try {
       const db = await openSafeDB();
-      if (!db) return;
+      if (!db) return false;
       return new Promise((resolve) => {
         const tx = db.transaction('slots', 'readwrite');
         tx.objectStore('slots').put(slot);
@@ -1208,14 +1209,14 @@
   async function idbDeleteSlot(id) {
     try {
       const db = await openSafeDB();
-      if (!db) return;
+      if (!db) return false;
       return new Promise((resolve) => {
         const tx = db.transaction('slots', 'readwrite');
         tx.objectStore('slots').delete(id);
         tx.oncomplete = () => resolve(true);
         tx.onerror = () => resolve(false);
       });
-    } catch (e) {}
+    } catch (e) { return false; }
   }
 
   // --- メインデータ構造 ---
@@ -1331,7 +1332,6 @@
     document.getElementById('helpModalOverlay').style.display = 'none';
   }
 
-  // --- パース画像の個別差し替え ---
   function handleReplaceSlideImage(slideId, event) {
     const file = event.target.files[0];
     if (!file) return;
@@ -1350,7 +1350,7 @@
     event.target.value = '';
   }
 
-  // --- ゲーム風セーブデータスロット管理（IndexedDB完全保存） ---
+  // --- ゲーム風セーブデータスロット管理 ---
   async function saveToActiveSlotSilently() {
     if (!projectData.materials || projectData.materials.length === 0) return;
     const projName = projectData.projectName || '未設定物件';
@@ -1369,6 +1369,8 @@
     };
 
     await idbSaveSlotItem(slotItem);
+    // 材料ライブラリにも全件同期
+    (projectData.materials || []).forEach(m => saveToMaterialHistory(m));
   }
 
   async function saveCurrentToNewSlot() {
@@ -1388,6 +1390,7 @@
     };
 
     await idbSaveSlotItem(slotItem);
+    (projectData.materials || []).forEach(m => saveToMaterialHistory(m));
     await openSaveSlotModal();
     showToast(`💾 新規セーブスロットに保存しました！`);
   }
@@ -1599,6 +1602,7 @@
     };
 
     await idbSaveSlotItem(slots[sIndex]);
+    (projectData.materials || []).forEach(m => saveToMaterialHistory(m));
     await openSaveSlotModal();
     showToast(`💾 スロットに上書き保存しました！`);
   }
@@ -1623,7 +1627,7 @@
     let history = getMaterialHistory();
     const currentProject = projectData.projectName || '未設定物件';
     
-    history = history.filter(h => !(h.projectName === currentProject && h.part === mat.part && h.specs === mat.specs && h.maker === mat.maker));
+    history = history.filter(h => !(h.part === mat.part && h.specs === mat.specs && h.maker === mat.maker));
     history.unshift({
       id: 'lib_' + Date.now() + Math.random().toString(36).substring(2, 6),
       projectName: currentProject,
@@ -1635,7 +1639,7 @@
       savedAt: Date.now()
     });
     
-    if (history.length > 200) history = history.slice(0, 200);
+    if (history.length > 250) history = history.slice(0, 250);
     try {
       localStorage.setItem(STORAGE_KEY_HISTORY, JSON.stringify(history));
     } catch(e) {}
@@ -1643,7 +1647,7 @@
 
   function deleteHistoryItem(historyId) {
     let history = getMaterialHistory();
-    history = history.filter(h => h.id !== historyId);
+    history = history.filter(h => String(h.id) !== String(historyId));
     try { localStorage.setItem(STORAGE_KEY_HISTORY, JSON.stringify(history)); } catch(e) {}
     filterLibraryItems();
     showToast("🗑️ 材料履歴を削除しました");
@@ -1682,7 +1686,6 @@
   });
 
   window.addEventListener('keydown', (e) => {
-    // Ctrl + Z / Cmd + Z で元に戻す
     const isInputActive = ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName);
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && !e.shiftKey && !isInputActive) {
       e.preventDefault();
@@ -2174,6 +2177,7 @@
         url: h.url,
         materialImg: h.materialImg
       });
+      saveCurrentDraft();
       renderPages(false);
       showToast(`「${h.part}」を材料表に追加しました！`);
     }
@@ -2203,6 +2207,7 @@
       }
     });
     closeLibraryModal();
+    saveCurrentDraft();
     renderPages(false);
     showToast(`選択した ${checks.length} 件の材料を追加しました！`);
   }
@@ -2838,6 +2843,7 @@
     }
 
     closeModal();
+    saveCurrentDraft();
     renderPages(false);
     showToast("材料仕様を保存しました");
   }
@@ -2869,7 +2875,7 @@
             if (projectData.materials) {
               projectData.materials.forEach(m => saveToMaterialHistory(m));
             }
-            saveToActiveSlotSilently();
+            saveCurrentDraft();
             renderPages(false);
             showToast("📥 プロジェクトデータを読み込みました！");
           }
@@ -2920,7 +2926,7 @@
   @media print {
     body { background: #fff !important; padding: 0 !important; }
     .toolbar { display: none !important; }
-    .pages-container { max-width: 100% !important; margin: 0 !important; padding: 0 !important; gap: 0 !important; }
+    .pages-container { max-width: 100% !important; margin: 0 !important; padding: 0 !important; }
     .page-card {
       border: none !important;
       box-shadow: none !important;
@@ -2956,7 +2962,6 @@
       max-width: 100% !important;
       display: inline-block !important;
       position: relative !important;
-      line-height: 0 !important;
     }
     .image-stage img {
       max-height: 250mm !important;
@@ -2964,7 +2969,16 @@
       max-width: 100% !important;
       object-fit: contain !important;
     }
-    .pin { background: #000 !important; color: #fff !important; border: 1.5px solid #000 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .pin {
+      background: #2563eb !important;
+      color: #ffffff !important;
+      border: 2px solid #ffffff !important;
+      box-shadow: 0 0 0 1.5px #0f172a, 0 2px 6px rgba(0,0,0,0.6) !important;
+      font-weight: 900 !important;
+      font-size: 12.5px !important;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
     .pin-popup { display: none !important; }
 
     body.print-table-only .page-card:not(.master-card) { display: none !important; }
