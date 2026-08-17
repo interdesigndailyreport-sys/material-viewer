@@ -155,7 +155,7 @@
     bottom: 34px;
     left: 50%;
     transform: translateX(-50%);
-    width: 260px;
+    width: 280px;
     background: rgba(15, 23, 42, 0.96);
     color: #fff;
     padding: 12px 14px;
@@ -177,6 +177,23 @@
     background: transparent;
   }
   .pin:hover .pin-popup, .pin.is-active .pin-popup { display: block; }
+  
+  /* ポップアップ内の材料写真 */
+  .popup-mat-img {
+    width: 100%;
+    height: 140px;
+    border-radius: 4px;
+    overflow: hidden;
+    margin-bottom: 8px;
+    background: #000;
+    border: 1px solid rgba(255,255,255,0.2);
+  }
+  .popup-mat-img img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
   .popup-title { font-weight: bold; color: var(--pin-accent); margin-bottom: 5px; font-size: 12px; }
   .popup-link {
     display: inline-block;
@@ -209,6 +226,15 @@
   table { width: 100%; border-collapse: collapse; font-size: 12px; }
   th, td { border: 1px solid var(--border); padding: 8px 10px; text-align: left; vertical-align: top; }
   th { background: #f8fafc; font-weight: bold; }
+  .table-mat-thumb {
+    width: 48px;
+    height: 48px;
+    object-fit: cover;
+    border-radius: 3px;
+    border: 1px solid var(--border);
+    display: block;
+    margin: auto;
+  }
   .table-btn-group {
     display: flex;
     gap: 8px;
@@ -247,11 +273,13 @@
     border-radius: 8px;
     width: 440px;
     box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+    max-height: 90vh;
+    overflow-y: auto;
   }
   .modal h3 { margin-bottom: 14px; font-size: 15px; }
   .form-group { margin-bottom: 12px; }
   .form-group label { display: block; font-size: 12px; font-weight: bold; margin-bottom: 4px; }
-  .form-group input, .form-group textarea {
+  .form-group input[type="text"], .form-group input[type="url"], .form-group textarea {
     width: 100%;
     padding: 8px;
     border: 1px solid var(--border);
@@ -312,9 +340,23 @@
 
 <div class="slides-container" id="slidesContainer"></div>
 
+<!-- モーダル -->
 <div class="modal-overlay" id="modalOverlay">
   <div class="modal">
     <h3 id="modalTitle">材料仕様の追加・編集</h3>
+    <div class="form-group">
+      <label>材料・マテリアルの写真 (任意)</label>
+      <div style="display:flex; align-items:center; gap:10px;">
+        <label class="btn btn-outline" style="padding:6px 12px; font-size:12px; cursor:pointer;">
+          写真を選択
+          <input type="file" id="inputMaterialImg" accept="image/*">
+        </label>
+        <div id="materialImgPreviewBox" style="display:none; align-items:center; gap:8px;">
+          <img id="materialImgPreview" style="width:50px; height:50px; object-fit:cover; border-radius:4px; border:1px solid #cbd5e1;">
+          <button type="button" class="btn btn-outline" style="padding:3px 8px; font-size:11px; color:#ef4444;" onclick="clearMaterialImg()">削除</button>
+        </div>
+      </div>
+    </div>
     <div class="form-group">
       <label>使用部位 (例: 低層部妻壁一部)</label>
       <input type="text" id="inputPart" placeholder="部位名">
@@ -342,7 +384,8 @@
   let projectData = { slides: [] };
   let activeSlideId = null;
   let tempCoords = null;
-  let editingPinId = null; // 編集中のピンID
+  let editingPinId = null;
+  let tempMaterialImgSrc = null;
 
   window.addEventListener('DOMContentLoaded', () => {
     if (projectData.slides.length === 0) {
@@ -370,6 +413,27 @@
     });
     this.value = "";
   });
+
+  // 材料写真の選択処理
+  document.getElementById('inputMaterialImg').addEventListener('change', function(e) {
+    const file = e.target.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        tempMaterialImgSrc = event.target.result;
+        document.getElementById('materialImgPreview').src = tempMaterialImgSrc;
+        document.getElementById('materialImgPreviewBox').style.display = 'flex';
+      };
+      reader.readAsDataURL(file);
+    }
+  });
+
+  function clearMaterialImg() {
+    tempMaterialImgSrc = null;
+    document.getElementById('materialImgPreview').src = '';
+    document.getElementById('materialImgPreviewBox').style.display = 'none';
+    document.getElementById('inputMaterialImg').value = '';
+  }
 
   function addEmptySlide(defaultTitle = "") {
     const slideNumber = projectData.slides.length + 1;
@@ -455,6 +519,7 @@
           popup.addEventListener('click', (e) => e.stopPropagation());
 
           popup.innerHTML = `
+            ${pin.materialImg ? `<div class="popup-mat-img"><img src="${pin.materialImg}" alt="マテリアル写真"></div>` : ''}
             <div class="popup-title">No.${pinNo} ${pin.part}</div>
             <div>${pin.specs.replace(/\n/g, '<br>')}</div>
             ${pin.maker ? `<div style="color:#94a3b8; margin-top:4px;">/${pin.maker}</div>` : ''}
@@ -500,10 +565,13 @@
         rowsHtml += `
           <tr>
             <td style="font-weight:bold; text-align:center; width:45px;">${pinNo}</td>
-            <td style="width:160px;"><strong>■${pin.part}</strong></td>
+            <td style="width:65px; text-align:center; padding:4px;">
+              ${pin.materialImg ? `<img src="${pin.materialImg}" class="table-mat-thumb" alt="材料写真">` : '<span style="color:#94a3b8; font-size:10px;">なし</span>'}
+            </td>
+            <td style="width:150px;"><strong>■${pin.part}</strong></td>
             <td style="white-space:pre-line;">${pin.specs}</td>
-            <td style="width:160px;">${pin.maker || '-'}</td>
-            <td style="width:150px;">${pin.url ? `<a href="${pin.url}" target="_blank" rel="noopener noreferrer" style="color:#2563eb;">リンクを開く</a>` : '-'}</td>
+            <td style="width:150px;">${pin.maker || '-'}</td>
+            <td style="width:140px;">${pin.url ? `<a href="${pin.url}" target="_blank" rel="noopener noreferrer" style="color:#2563eb;">リンクを開く</a>` : '-'}</td>
             <td style="width:90px; text-align:center;">
               <div class="table-btn-group">
                 <button class="action-btn-edit" onclick="openEditPinModal(${slide.id}, ${pin.id})">編集</button>
@@ -519,6 +587,7 @@
           <thead>
             <tr>
               <th>No.</th>
+              <th>材料写真</th>
               <th>使用部位</th>
               <th>仕様・仕上げ詳細</th>
               <th>メーカー</th>
@@ -527,7 +596,7 @@
             </tr>
           </thead>
           <tbody>
-            ${rowsHtml || '<tr><td colspan="6" style="text-align:center; color:#94a3b8; padding:12px;">パース上をクリックして材料ピンを追加してください</td></tr>'}
+            ${rowsHtml || '<tr><td colspan="7" style="text-align:center; color:#94a3b8; padding:12px;">パース上をクリックして材料ピンを追加してください</td></tr>'}
           </tbody>
         </table>
       `;
@@ -546,11 +615,11 @@
     if (s) s.title = newTitle;
   }
 
-  // 新規ピン追加
   function openAddPinModal(slideId, x, y) {
     activeSlideId = slideId;
     tempCoords = { x, y };
     editingPinId = null;
+    clearMaterialImg();
 
     document.getElementById('modalTitle').textContent = "材料仕様の追加";
     document.getElementById('inputPart').value = '';
@@ -560,7 +629,6 @@
     document.getElementById('modalOverlay').style.display = 'flex';
   }
 
-  // 既存ピンの編集
   function openEditPinModal(slideId, pinId) {
     activeSlideId = slideId;
     editingPinId = pinId;
@@ -575,6 +643,15 @@
     document.getElementById('inputSpecs').value = pin.specs || '';
     document.getElementById('inputMaker').value = pin.maker || '';
     document.getElementById('inputUrl').value = pin.url || '';
+
+    if (pin.materialImg) {
+      tempMaterialImgSrc = pin.materialImg;
+      document.getElementById('materialImgPreview').src = tempMaterialImgSrc;
+      document.getElementById('materialImgPreviewBox').style.display = 'flex';
+    } else {
+      clearMaterialImg();
+    }
+
     document.getElementById('modalOverlay').style.display = 'flex';
   }
 
@@ -592,21 +669,21 @@
     const url = document.getElementById('inputUrl').value || '';
 
     if (editingPinId !== null) {
-      // 既存ピンの更新
       const pin = slide.pins.find(p => p.id === editingPinId);
       if (pin) {
         pin.part = part;
         pin.specs = specs;
         pin.maker = maker;
         pin.url = url;
+        pin.materialImg = tempMaterialImgSrc;
       }
     } else {
-      // 新規ピンの作成
       slide.pins.push({
         id: Date.now() + Math.random(),
         x: tempCoords.x,
         y: tempCoords.y,
-        part, specs, maker, url
+        part, specs, maker, url,
+        materialImg: tempMaterialImgSrc
       });
     }
 
@@ -665,15 +742,18 @@
   .image-wrapper img { width: 100%; display: block; }
   .pin { position: absolute; width: 28px; height: 28px; background: var(--pin-bg); color: #fff; border: 2px solid var(--pin-accent); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold; transform: translate(-50%, -50%); cursor: pointer; box-shadow: 0 2px 6px rgba(0,0,0,0.5); z-index: 10; transition: 0.15s; }
   .pin:hover, .pin.is-active { transform: translate(-50%, -50%) scale(1.15); background: var(--primary); z-index: 50; }
-  .pin-popup { position: absolute; bottom: 34px; left: 50%; transform: translateX(-50%); width: 260px; background: rgba(15, 23, 42, 0.96); color: #fff; padding: 12px 14px; border-radius: 6px; font-size: 11.5px; line-height: 1.45; display: none; z-index: 60; box-shadow: 0 6px 20px rgba(0,0,0,0.35); }
+  .pin-popup { position: absolute; bottom: 34px; left: 50%; transform: translateX(-50%); width: 280px; background: rgba(15, 23, 42, 0.96); color: #fff; padding: 12px 14px; border-radius: 6px; font-size: 11.5px; line-height: 1.45; display: none; z-index: 60; box-shadow: 0 6px 20px rgba(0,0,0,0.35); }
   .pin-popup::after { content: ''; position: absolute; bottom: -16px; left: 0; width: 100%; height: 20px; background: transparent; }
   .pin:hover .pin-popup, .pin.is-active .pin-popup { display: block; }
+  .popup-mat-img { width: 100%; height: 140px; border-radius: 4px; overflow: hidden; margin-bottom: 8px; background: #000; border: 1px solid rgba(255,255,255,0.2); }
+  .popup-mat-img img { width: 100%; height: 100%; object-fit: cover; }
   .popup-title { font-weight: bold; color: var(--pin-accent); margin-bottom: 5px; font-size: 12px; }
   .popup-link { display: inline-block; margin-top: 8px; color: #38bdf8; text-decoration: underline; font-weight: bold; cursor: pointer; }
   .table-section { margin-top: 18px; }
   table { width: 100%; border-collapse: collapse; font-size: 12px; }
   th, td { border: 1px solid var(--border); padding: 8px 10px; text-align: left; vertical-align: top; }
   th { background: #f8fafc; font-weight: bold; }
+  .table-mat-thumb { width: 48px; height: 48px; object-fit: cover; border-radius: 3px; border: 1px solid var(--border); display: block; margin: auto; }
   @page { size: A3 landscape; margin: 10mm; }
   @media print {
     body { background: #fff; padding: 0; }
@@ -716,7 +796,7 @@
         const pop = document.createElement('div');
         pop.className = 'pin-popup';
         pop.onclick = (e) => e.stopPropagation();
-        pop.innerHTML = '<div class="popup-title">No.' + no + ' ' + pin.part + '</div><div>' + pin.specs.replace(/\\n/g, '<br>') + '</div>' + (pin.maker ? '<div style="color:#94a3b8;margin-top:4px;">/' + pin.maker + '</div>' : '') + (pin.url ? '<a class="popup-link" href="' + pin.url + '" target="_blank" rel="noopener noreferrer">メーカー詳細を開く →</a>' : '');
+        pop.innerHTML = (pin.materialImg ? '<div class="popup-mat-img"><img src="' + pin.materialImg + '" alt="材料写真"></div>' : '') + '<div class="popup-title">No.' + no + ' ' + pin.part + '</div><div>' + pin.specs.replace(/\\n/g, '<br>') + '</div>' + (pin.maker ? '<div style="color:#94a3b8;margin-top:4px;">/' + pin.maker + '</div>' : '') + (pin.url ? '<a class="popup-link" href="' + pin.url + '" target="_blank" rel="noopener noreferrer">メーカー詳細を開く →</a>' : '');
         pEl.appendChild(pop);
         wrapper.appendChild(pEl);
       });
@@ -724,11 +804,11 @@
     card.appendChild(wrapper);
     let rows = '';
     slide.pins.forEach((pin, idx) => {
-      rows += '<tr><td style="font-weight:bold;text-align:center;width:45px;">' + (idx+1) + '</td><td style="width:160px;"><strong>■' + pin.part + '</strong></td><td style="white-space:pre-line;">' + pin.specs + '</td><td style="width:160px;">' + (pin.maker||'-') + '</td><td style="width:150px;">' + (pin.url ? '<a href="' + pin.url + '" target="_blank" rel="noopener noreferrer" style="color:#2563eb;">リンクを開く</a>' : '-') + '</td></tr>';
+      rows += '<tr><td style="font-weight:bold;text-align:center;width:45px;">' + (idx+1) + '</td><td style="width:65px;text-align:center;padding:4px;">' + (pin.materialImg ? '<img src="' + pin.materialImg + '" class="table-mat-thumb" alt="材料写真">' : '<span style="color:#94a3b8;font-size:10px;">なし</span>') + '</td><td style="width:150px;"><strong>■' + pin.part + '</strong></td><td style="white-space:pre-line;">' + pin.specs + '</td><td style="width:150px;">' + (pin.maker||'-') + '</td><td style="width:140px;">' + (pin.url ? '<a href="' + pin.url + '" target="_blank" rel="noopener noreferrer" style="color:#2563eb;">リンクを開く</a>' : '-') + '</td></tr>';
     });
     const tbl = document.createElement('div');
     tbl.className = 'table-section';
-    tbl.innerHTML = '<table><thead><tr><th>No.</th><th>使用部位</th><th>仕様・仕上げ詳細</th><th>メーカー</th><th>カタログ / 承認図</th></tr></thead><tbody>' + (rows || '<tr><td colspan="5" style="text-align:center;color:#94a3b8;padding:12px;">材料指定なし</td></tr>') + '</tbody></table>';
+    tbl.innerHTML = '<table><thead><tr><th>No.</th><th>材料写真</th><th>使用部位</th><th>仕様・仕上げ詳細</th><th>メーカー</th><th>カタログ / 承認図</th></tr></thead><tbody>' + (rows || '<tr><td colspan="6" style="text-align:center;color:#94a3b8;padding:12px;">材料指定なし</td></tr>') + '</tbody></table>';
     card.appendChild(tbl);
     container.appendChild(card);
   });
