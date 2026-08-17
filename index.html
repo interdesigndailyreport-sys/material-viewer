@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<title>材料仕上仕様 パース＆マテリアルビューア</title>
+<title>材料仕上仕様 パース＆共通マテリアルビューア</title>
 <style>
   :root {
     --primary: #2563eb;
@@ -72,7 +72,6 @@
     padding: 0 16px;
   }
   
-  /* カード（ページ）共通スタイル */
   .page-card {
     background: var(--card-bg);
     border-radius: 8px;
@@ -109,11 +108,10 @@
     font-weight: bold;
     padding: 3px 8px;
     border-radius: 4px;
-    background: #e2e8f0;
-    color: #475569;
+    background: #dbeafe;
+    color: #1e40af;
   }
-  .card-badge.perspective { background: #dbeafe; color: #1e40af; }
-  .card-badge.table { background: #fef3c7; color: #92400e; }
+  .card-badge.master { background: #fef3c7; color: #92400e; }
   
   .card-title-input {
     font-size: 16px;
@@ -141,9 +139,6 @@
     border: 1px solid var(--border);
     font-size: 12px;
     font-weight: bold;
-    display: flex;
-    align-items: center;
-    gap: 4px;
     user-select: none;
   }
   .drag-handle:active { cursor: grabbing; }
@@ -267,11 +262,12 @@
   .popup-mat-img img { width: 100%; height: 100%; object-fit: cover; }
   .popup-title { font-weight: bold; color: var(--pin-accent); margin-bottom: 5px; font-size: 12px; }
   .popup-link { display: inline-block; margin-top: 8px; color: #38bdf8; text-decoration: underline; font-weight: bold; cursor: pointer; }
-  .popup-bottom-actions { display: flex; justify-content: flex-end; margin-top: 8px; padding-top: 6px; border-top: 1px solid rgba(255,255,255,0.15); }
+  .popup-bottom-actions { display: flex; justify-content: space-between; align-items: center; margin-top: 8px; padding-top: 6px; border-top: 1px solid rgba(255,255,255,0.15); }
   .popup-edit-btn { background: #334155; color: #f8fafc; border: none; padding: 3px 8px; border-radius: 4px; font-size: 10.5px; cursor: pointer; font-weight: bold; }
   .popup-edit-btn:hover { background: #475569; }
+  .popup-del-pin-btn { background: transparent; color: #f87171; border: none; font-size: 10.5px; cursor: pointer; text-decoration: underline; }
 
-  /* テーブルスタイル */
+  /* 共通テーブル */
   table { width: 100%; border-collapse: collapse; font-size: 12px; background: #fff; }
   th, td { border: 1px solid var(--border); padding: 10px 12px; text-align: left; vertical-align: middle; }
   th { background: #f8fafc; font-weight: bold; white-space: nowrap; }
@@ -325,9 +321,9 @@
   }
   .modal {
     background: #fff;
-    padding: 22px;
+    padding: 24px;
     border-radius: 8px;
-    width: 460px;
+    width: 480px;
     box-shadow: 0 10px 30px rgba(0,0,0,0.25);
     max-height: 90vh;
     overflow-y: auto;
@@ -335,7 +331,7 @@
   .modal h3 { margin-bottom: 14px; font-size: 15px; }
   .form-group { margin-bottom: 12px; }
   .form-group label { display: block; font-size: 12px; font-weight: bold; margin-bottom: 4px; }
-  .form-group input[type="text"], .form-group input[type="url"], .form-group textarea {
+  .form-group input[type="text"], .form-group input[type="url"], .form-group select, .form-group textarea {
     width: 100%;
     padding: 8px;
     border: 1px solid var(--border);
@@ -343,12 +339,20 @@
     font-size: 12px;
   }
   .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+  .sync-note {
+    font-size: 11px;
+    color: #2563eb;
+    background: #eff6ff;
+    padding: 6px 10px;
+    border-radius: 4px;
+    margin-bottom: 12px;
+  }
 
-  /* 印刷設定（A3横：パースと表が別々のページに出力） */
+  /* 印刷設定（A3横：各パース1枚ずつ＋最後に材料表を出力） */
   @page { size: A3 landscape; margin: 10mm; }
   @media print {
     body { background: #fff; padding: 0; }
-    .toolbar, .modal-overlay, .card-actions, .table-btn-group, .row-drag-handle, th.col-handle, td.col-handle, th:last-child, td:last-child {
+    .toolbar, .modal-overlay, .card-actions, .table-btn-group, .row-drag-handle, .popup-del-pin-btn, th.col-handle, td.col-handle, th:last-child, td:last-child, .btn-add-mat {
       display: none !important;
     }
     .pages-container { max-width: 100%; margin: 0; padding: 0; gap: 0; }
@@ -384,7 +388,7 @@
     ＋ パース画像を一括追加
     <input type="file" id="batchImageInput" accept="image/*" multiple>
   </label>
-  <button class="btn btn-outline" onclick="addEmptySlidePair()">＋ 空白スライドを追加</button>
+  <button class="btn btn-outline" onclick="addEmptySlide()">＋ 空白パースを追加</button>
   
   <div style="margin-left: auto; display: flex; gap: 8px;">
     <button class="btn btn-success" onclick="exportReadOnlyHTML()">クライアント用 閲覧専用HTMLを出力</button>
@@ -399,12 +403,29 @@
 
 <div class="pages-container" id="pagesContainer"></div>
 
-<!-- モーダル -->
+<!-- ピン追加／材料編集モーダル -->
 <div class="modal-overlay" id="modalOverlay">
   <div class="modal">
-    <h3 id="modalTitle">材料仕様の追加・編集</h3>
+    <h3 id="modalTitle">材料仕様の登録・編集</h3>
+    <div id="syncNote" class="syncNote" style="display:none;">
+      💡 この材料を変更すると、配置されているすべてのパースおよび材料表に一括連動します。
+    </div>
+
+    <!-- ピン配置時のみ表示されるマテリアル選択セレクトボックス -->
+    <div class="form-group" id="groupMatSelect" style="display:none;">
+      <label>使用する材料を選択 (または新規作成)</label>
+      <select id="modalMatSelect" onchange="onMatSelectChange()">
+        <option value="new">＋ 新しい材料として登録</option>
+      </select>
+    </div>
+
     <div class="form-group">
-      <label>材料・マテリアルの写真 (任意)</label>
+      <label>番号 / 符号 (例: 1, 2, T-1)</label>
+      <input type="text" id="inputCustomNo" placeholder="自動連番 (または任意記号)">
+    </div>
+
+    <div class="form-group">
+      <label>材料・マテリアル写真 (任意)</label>
       <div style="display:flex; align-items:center; gap:10px;">
         <label class="btn btn-outline" style="padding:6px 12px; font-size:12px; cursor:pointer;">
           写真を選択
@@ -417,7 +438,7 @@
       </div>
     </div>
     <div class="form-group">
-      <label>使用部位 (例: 低層部妻壁一部)</label>
+      <label>使用部位 (例: エントランス外壁 / 庇天井)</label>
       <input type="text" id="inputPart" placeholder="部位名">
     </div>
     <div class="form-group">
@@ -434,26 +455,26 @@
     </div>
     <div class="modal-actions">
       <button class="btn btn-outline" onclick="closeModal()">キャンセル</button>
-      <button class="btn" onclick="savePinData()">保存</button>
+      <button class="btn" onclick="saveModalData()">保存</button>
     </div>
   </div>
 </div>
 
 <script>
+  // 一元管理データ構造
   let projectData = {
-    // items: カードごとの順序配列 { type: 'perspective'|'table', slideId: ... }
-    pageOrder: [],
-    slides: []
+    materials: [], // { id, customNo, part, specs, maker, url, materialImg }
+    slides: []     // { id, title, imageSrc, pins: [{ id, materialId, x, y }] }
   };
 
   let activeSlideId = null;
-  let tempCoords = null;
-  let editingPinId = null;
+  let tempPinCoords = null;
+  let editingMaterialId = null;
   let tempMaterialImgSrc = null;
 
   window.addEventListener('DOMContentLoaded', () => {
     if (projectData.slides.length === 0) {
-      addEmptySlidePair("外観・アプローチ パース");
+      addEmptySlide("外観・アプローチ パース");
     }
   });
 
@@ -466,15 +487,12 @@
       const reader = new FileReader();
       reader.onload = (event) => {
         const titleName = file.name.replace(/\.[^/.]+$/, "");
-        const slideId = Date.now() + Math.random();
         projectData.slides.push({
-          id: slideId,
+          id: Date.now() + Math.random(),
           title: titleName,
           imageSrc: event.target.result,
           pins: []
         });
-        projectData.pageOrder.push({ id: 'p-' + slideId, type: 'perspective', slideId: slideId });
-        projectData.pageOrder.push({ id: 't-' + slideId, type: 'table', slideId: slideId });
         renderPages();
       };
       reader.readAsDataURL(file);
@@ -482,339 +500,337 @@
     this.value = "";
   });
 
-  function addEmptySlidePair(defaultTitle = "") {
+  function addEmptySlide(defaultTitle = "") {
     const slideNumber = projectData.slides.length + 1;
-    const slideId = Date.now() + Math.random();
-    const title = defaultTitle || `パーススライド ${slideNumber}`;
-
     projectData.slides.push({
-      id: slideId,
-      title: title,
+      id: Date.now() + Math.random(),
+      title: defaultTitle || `パーススライド ${slideNumber}`,
       imageSrc: null,
       pins: []
     });
-    projectData.pageOrder.push({ id: 'p-' + slideId, type: 'perspective', slideId: slideId });
-    projectData.pageOrder.push({ id: 't-' + slideId, type: 'table', slideId: slideId });
     renderPages();
   }
 
-  function deleteSlidePair(slideId) {
-    if (confirm("このパースおよび対応する材料表を削除しますか？")) {
+  function deleteSlide(slideId) {
+    if (confirm("このパース画面を削除しますか？（※材料データ自体は保持されます）")) {
       projectData.slides = projectData.slides.filter(s => s.id !== slideId);
-      projectData.pageOrder = projectData.pageOrder.filter(item => item.slideId !== slideId);
       renderPages();
     }
   }
 
-  // タイトル更新（パース・材料表両方に同期）
+  function moveSlide(index, direction) {
+    const targetIndex = index + direction;
+    if (targetIndex < 0 || targetIndex >= projectData.slides.length) return;
+    const item = projectData.slides.splice(index, 1)[0];
+    projectData.slides.splice(targetIndex, 0, item);
+    renderPages();
+  }
+
   function updateSlideTitle(slideId, newTitle) {
     const s = projectData.slides.find(item => item.id === slideId);
-    if (s) {
-      s.title = newTitle;
+    if (s) s.title = newTitle;
+  }
+
+  // 材料表側から直接Noを打ち替えた場合
+  function updateMaterialNo(matId, val) {
+    const mat = projectData.materials.find(m => m.id === matId);
+    if (mat) {
+      mat.customNo = val;
       renderPages();
     }
   }
 
-  // 番号直接打ち替え
-  function updatePinCustomNo(slideId, pinId, val) {
-    const slide = projectData.slides.find(s => s.id === slideId);
-    if (!slide) return;
-    const pin = slide.pins.find(p => p.id === pinId);
-    if (!pin) return;
-
-    pin.customNo = val;
-    renderPages();
+  // 材料の削除
+  function deleteMaterial(matId) {
+    if (confirm("この材料を削除しますか？\n（配置されているすべてのパース上のピンも削除されます）")) {
+      projectData.materials = projectData.materials.filter(m => m.id !== matId);
+      projectData.slides.forEach(s => {
+        s.pins = s.pins.filter(p => p.materialId !== matId);
+      });
+      renderPages();
+    }
   }
 
-  // メイン描画
+  // パース上から特定のピンのみを取り外す
+  function removePinFromSlide(slideId, pinId) {
+    const slide = projectData.slides.find(s => s.id === slideId);
+    if (slide) {
+      slide.pins = slide.pins.filter(p => p.id !== pinId);
+      renderPages();
+    }
+  }
+
+  // 全体描画
   function renderPages() {
     const container = document.getElementById('pagesContainer');
     container.innerHTML = "";
 
-    // 順序リストに基づいてカードを描画
-    projectData.pageOrder.forEach((pageItem, index) => {
-      const slide = projectData.slides.find(s => s.id === pageItem.slideId);
-      if (!slide) return;
-
+    // 1. 各パース画面を描画
+    projectData.slides.forEach((slide, sIndex) => {
       const card = document.createElement('div');
       card.className = 'page-card';
-      card.dataset.index = index;
-      card.draggable = false; // ハンドル操作のみ
+      card.dataset.index = sIndex;
 
-      // カードヘッダー
       const header = document.createElement('div');
       header.className = 'card-header';
-
-      const isPers = pageItem.type === 'perspective';
-      const badgeText = isPers ? 'パース画面' : '材料仕上表';
-      const badgeClass = isPers ? 'perspective' : 'table';
-
       header.innerHTML = `
         <div class="card-title-group">
-          <span class="card-badge ${badgeClass}">${badgeText}</span>
+          <span class="card-badge">パース画面 ${sIndex + 1}</span>
           <input class="card-title-input" type="text" value="${slide.title}" onchange="updateSlideTitle(${slide.id}, this.value)" placeholder="パース名を入力">
         </div>
         <div class="card-actions">
-          <div class="drag-handle" draggable="true" title="ドラッグしてカードの順序を入れ替え">⠿ ドラッグして並替</div>
-          <button class="btn btn-outline" style="padding:4px 8px;" onclick="moveCard(${index}, -1)" ${index === 0 ? 'disabled' : ''}>▲</button>
-          <button class="btn btn-outline" style="padding:4px 8px;" onclick="moveCard(${index}, 1)" ${index === projectData.pageOrder.length - 1 ? 'disabled' : ''}>▼</button>
-          <button class="btn btn-danger" style="padding:4px 8px;" onclick="deleteSlidePair(${slide.id})">削除</button>
+          <div class="drag-handle" draggable="true" title="ドラッグしてパースの順序を入れ替え">⠿ ドラッグして並替</div>
+          <button class="btn btn-outline" style="padding:4px 8px;" onclick="moveSlide(${sIndex}, -1)" ${sIndex === 0 ? 'disabled' : ''}>▲</button>
+          <button class="btn btn-outline" style="padding:4px 8px;" onclick="moveSlide(${sIndex}, 1)" ${sIndex === projectData.slides.length - 1 ? 'disabled' : ''}>▼</button>
+          <button class="btn btn-danger" style="padding:4px 8px;" onclick="deleteSlide(${slide.id})">スライド削除</button>
         </div>
       `;
 
-      // カードのドラッグ＆ドロップ設定
+      // スライドドラッグ
       const handle = header.querySelector('.drag-handle');
       handle.addEventListener('dragstart', (e) => {
         card.classList.add('dragging');
-        e.dataTransfer.setData('text/plain', index);
+        e.dataTransfer.setData('text/plain', sIndex);
       });
       handle.addEventListener('dragend', () => {
         card.classList.remove('dragging');
         document.querySelectorAll('.page-card').forEach(c => c.classList.remove('drag-over'));
       });
-
-      card.addEventListener('dragover', (e) => {
-        e.preventDefault();
-        card.classList.add('drag-over');
-      });
-      card.addEventListener('dragleave', () => {
-        card.classList.remove('drag-over');
-      });
+      card.addEventListener('dragover', (e) => { e.preventDefault(); card.classList.add('drag-over'); });
+      card.addEventListener('dragleave', () => card.classList.remove('drag-over'));
       card.addEventListener('drop', (e) => {
         e.preventDefault();
         card.classList.remove('drag-over');
         const fromIndex = parseInt(e.dataTransfer.getData('text/plain'), 10);
-        const toIndex = index;
+        const toIndex = sIndex;
         if (fromIndex !== toIndex && !isNaN(fromIndex)) {
-          const item = projectData.pageOrder.splice(fromIndex, 1)[0];
-          projectData.pageOrder.splice(toIndex, 0, item);
+          const item = projectData.slides.splice(fromIndex, 1)[0];
+          projectData.slides.splice(toIndex, 0, item);
           renderPages();
         }
       });
 
       card.appendChild(header);
 
-      // 中身の描画（パースカード または 材料表カード）
-      if (isPers) {
-        // --- パース画面 ---
-        const imgWrapper = document.createElement('div');
-        imgWrapper.className = 'image-wrapper';
+      const imgWrapper = document.createElement('div');
+      imgWrapper.className = 'image-wrapper';
 
-        if (slide.imageSrc) {
-          const imgStage = document.createElement('div');
-          imgStage.className = 'image-stage';
+      if (slide.imageSrc) {
+        const imgStage = document.createElement('div');
+        imgStage.className = 'image-stage';
 
-          const img = document.createElement('img');
-          img.src = slide.imageSrc;
-          imgStage.appendChild(img);
+        const img = document.createElement('img');
+        img.src = slide.imageSrc;
+        imgStage.appendChild(img);
 
-          imgStage.addEventListener('click', (e) => {
-            if (e.target.closest('.pin')) return;
-            const rect = imgStage.getBoundingClientRect();
-            const x = ((e.clientX - rect.left) / rect.width) * 100;
-            const y = ((e.clientY - rect.top) / rect.height) * 100;
-            openAddPinModal(slide.id, x, y);
-          });
+        imgStage.addEventListener('click', (e) => {
+          if (e.target.closest('.pin')) return;
+          const rect = imgStage.getBoundingClientRect();
+          const x = ((e.clientX - rect.left) / rect.width) * 100;
+          const y = ((e.clientY - rect.top) / rect.height) * 100;
+          openAddPinModal(slide.id, x, y);
+        });
 
-          slide.pins.forEach((pin, pIndex) => {
-            const displayNo = (pin.customNo !== undefined && pin.customNo !== '') ? pin.customNo : (pIndex + 1);
-            const pinEl = document.createElement('div');
-            pinEl.className = 'pin';
-            pinEl.style.left = `${pin.x}%`;
-            pinEl.style.top = `${pin.y}%`;
-            pinEl.textContent = displayNo;
+        slide.pins.forEach((pin) => {
+          const mat = projectData.materials.find(m => m.id === pin.materialId);
+          if (!mat) return;
 
-            let isDragging = false;
-            let startX, startY;
-            let moved = false;
+          const displayNo = (mat.customNo !== undefined && mat.customNo !== '') ? mat.customNo : (projectData.materials.indexOf(mat) + 1);
+          const pinEl = document.createElement('div');
+          pinEl.className = 'pin';
+          pinEl.style.left = `${pin.x}%`;
+          pinEl.style.top = `${pin.y}%`;
+          pinEl.textContent = displayNo;
 
-            const onPointerDown = (e) => {
-              if (e.target.closest('.pin-popup')) return;
-              e.stopPropagation();
-              isDragging = true;
-              moved = false;
-              startX = e.clientX;
-              startY = e.clientY;
+          let isDragging = false;
+          let startX, startY;
+          let moved = false;
 
-              const onPointerMove = (ev) => {
-                if (!isDragging) return;
-                const dist = Math.hypot(ev.clientX - startX, ev.clientY - startY);
-                if (dist > 4) {
-                  moved = true;
-                  pinEl.classList.add('is-dragging');
-                  const rect = imgStage.getBoundingClientRect();
-                  let curX = ((ev.clientX - rect.left) / rect.width) * 100;
-                  let curY = ((ev.clientY - rect.top) / rect.height) * 100;
-                  curX = Math.max(0, Math.min(100, curX));
-                  curY = Math.max(0, Math.min(100, curY));
+          const onPointerDown = (e) => {
+            if (e.target.closest('.pin-popup')) return;
+            e.stopPropagation();
+            isDragging = true;
+            moved = false;
+            startX = e.clientX;
+            startY = e.clientY;
 
-                  pinEl.style.left = `${curX}%`;
-                  pinEl.style.top = `${curY}%`;
-                  pin.x = curX;
-                  pin.y = curY;
-                }
-              };
+            const onPointerMove = (ev) => {
+              if (!isDragging) return;
+              const dist = Math.hypot(ev.clientX - startX, ev.clientY - startY);
+              if (dist > 4) {
+                moved = true;
+                pinEl.classList.add('is-dragging');
+                const rect = imgStage.getBoundingClientRect();
+                let curX = ((ev.clientX - rect.left) / rect.width) * 100;
+                let curY = ((ev.clientY - rect.top) / rect.height) * 100;
+                curX = Math.max(0, Math.min(100, curX));
+                curY = Math.max(0, Math.min(100, curY));
 
-              const onPointerUp = () => {
-                isDragging = false;
-                pinEl.classList.remove('is-dragging');
-                window.removeEventListener('pointermove', onPointerMove);
-                window.removeEventListener('pointerup', onPointerUp);
-              };
-
-              window.addEventListener('pointermove', onPointerMove);
-              window.addEventListener('pointerup', onPointerUp);
-            };
-
-            pinEl.addEventListener('pointerdown', onPointerDown);
-
-            pinEl.addEventListener('click', (e) => {
-              e.stopPropagation();
-              if (moved) return;
-              document.querySelectorAll('.pin').forEach(p => {
-                if (p !== pinEl) p.classList.remove('is-active');
-              });
-              pinEl.classList.toggle('is-active');
-            });
-
-            const popup = document.createElement('div');
-            popup.className = 'pin-popup';
-            popup.addEventListener('click', (e) => e.stopPropagation());
-            popup.addEventListener('pointerdown', (e) => e.stopPropagation());
-
-            popup.innerHTML = `
-              ${pin.materialImg ? `<div class="popup-mat-img"><img src="${pin.materialImg}" alt="マテリアル写真"></div>` : ''}
-              <div class="popup-title">No.${displayNo} ${pin.part}</div>
-              <div>${pin.specs.replace(/\n/g, '<br>')}</div>
-              ${pin.maker ? `<div style="color:#94a3b8; margin-top:4px;">/${pin.maker}</div>` : ''}
-              ${pin.url ? `<a class="popup-link" href="${pin.url}" target="_blank" rel="noopener noreferrer">メーカー詳細を開く →</a>` : ''}
-              <div class="popup-bottom-actions">
-                <button class="popup-edit-btn" onclick="openEditPinModal(${slide.id}, ${pin.id})">✏️ 仕様を編集</button>
-              </div>
-            `;
-            pinEl.appendChild(popup);
-            imgStage.appendChild(pinEl);
-          });
-
-          imgWrapper.appendChild(imgStage);
-        } else {
-          const placeholder = document.createElement('div');
-          placeholder.className = 'empty-image-placeholder';
-          placeholder.innerHTML = `クリックしてこのスライドにパース画像を設定<br><span style="font-size:11px; color:#64748b;">(JPG / PNG)</span>`;
-          placeholder.onclick = () => {
-            const input = document.createElement('input');
-            input.type = 'file';
-            input.accept = 'image/*';
-            input.onchange = (e) => {
-              const f = e.target.files[0];
-              if (f) {
-                const r = new FileReader();
-                r.onload = (ev) => {
-                  slide.imageSrc = ev.target.result;
-                  renderPages();
-                };
-                r.readAsDataURL(f);
+                pinEl.style.left = `${curX}%`;
+                pinEl.style.top = `${curY}%`;
+                pin.x = curX;
+                pin.y = curY;
               }
             };
-            input.click();
+
+            const onPointerUp = () => {
+              isDragging = false;
+              pinEl.classList.remove('is-dragging');
+              window.removeEventListener('pointermove', onPointerMove);
+              window.removeEventListener('pointerup', onPointerUp);
+            };
+
+            window.addEventListener('pointermove', onPointerMove);
+            window.addEventListener('pointerup', onPointerUp);
           };
-          imgWrapper.appendChild(placeholder);
-        }
-        card.appendChild(imgWrapper);
-      } else {
-        // --- 材料仕上表 ---
-        const tableSection = document.createElement('div');
-        tableSection.className = 'table-section';
-        
-        let rowsHtml = '';
-        slide.pins.forEach((pin, pIndex) => {
-          const displayNo = (pin.customNo !== undefined && pin.customNo !== '') ? pin.customNo : (pIndex + 1);
-          rowsHtml += `
-            <tr class="sortable-row" draggable="true" data-slide-id="${slide.id}" data-pin-id="${pin.id}" data-p-index="${pIndex}">
-              <td class="row-drag-handle" title="ドラッグして行を並替">⠿</td>
-              <td style="width:55px; min-width:55px; text-align:center; padding:4px;">
-                <input type="text" class="no-input" value="${displayNo}" onchange="updatePinCustomNo(${slide.id}, ${pin.id}, this.value)" title="番号を直接変更できます">
-              </td>
-              <td style="width:75px; min-width:75px; text-align:center; padding:4px;">
-                ${pin.materialImg ? `<img src="${pin.materialImg}" class="table-mat-thumb" alt="材料写真">` : '<span style="color:#94a3b8; font-size:10px;">なし</span>'}
-              </td>
-              <td style="width:160px;"><strong>■${pin.part}</strong></td>
-              <td style="white-space:pre-line;">${pin.specs}</td>
-              <td style="width:160px;">${pin.maker || '-'}</td>
-              <td style="width:140px;">${pin.url ? `<a href="${pin.url}" target="_blank" rel="noopener noreferrer" style="color:#2563eb; font-weight:bold;">リンクを開く</a>` : '-'}</td>
-              <td style="width:90px; text-align:center;">
-                <div class="table-btn-group">
-                  <button class="action-btn-edit" onclick="openEditPinModal(${slide.id}, ${pin.id})">編集</button>
-                  <button class="action-btn-del" onclick="deletePin(${slide.id}, ${pin.id})">削除</button>
-                </div>
-              </td>
-            </tr>
+
+          pinEl.addEventListener('pointerdown', onPointerDown);
+
+          pinEl.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (moved) return;
+            document.querySelectorAll('.pin').forEach(p => {
+              if (p !== pinEl) p.classList.remove('is-active');
+            });
+            pinEl.classList.toggle('is-active');
+          });
+
+          const popup = document.createElement('div');
+          popup.className = 'pin-popup';
+          popup.addEventListener('click', (e) => e.stopPropagation());
+          popup.addEventListener('pointerdown', (e) => e.stopPropagation());
+
+          popup.innerHTML = `
+            ${mat.materialImg ? `<div class="popup-mat-img"><img src="${mat.materialImg}" alt="マテリアル写真"></div>` : ''}
+            <div class="popup-title">No.${displayNo} ${mat.part}</div>
+            <div>${mat.specs.replace(/\n/g, '<br>')}</div>
+            ${mat.maker ? `<div style="color:#94a3b8; margin-top:4px;">/${mat.maker}</div>` : ''}
+            ${mat.url ? `<a class="popup-link" href="${mat.url}" target="_blank" rel="noopener noreferrer">メーカー詳細を開く →</a>` : ''}
+            <div class="popup-bottom-actions">
+              <button class="popup-edit-btn" onclick="openEditMaterialModal('${mat.id}')">✏️ 全連動で仕様を編集</button>
+              <button class="popup-del-pin-btn" onclick="removePinFromSlide(${slide.id}, ${pin.id})">このピンを外す</button>
+            </div>
           `;
+          pinEl.appendChild(popup);
+          imgStage.appendChild(pinEl);
         });
 
-        tableSection.innerHTML = `
-          <table>
-            <thead>
-              <tr>
-                <th class="col-handle" style="width:28px;"></th>
-                <th style="width:55px; min-width:55px; text-align:center;">No.</th>
-                <th style="width:75px; min-width:75px; text-align:center;">材料写真</th>
-                <th style="width:160px;">使用部位</th>
-                <th>仕様・仕上げ詳細</th>
-                <th style="width:160px;">メーカー</th>
-                <th style="width:140px;">カタログ / 承認図</th>
-                <th style="width:90px; text-align:center;">操作</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${rowsHtml || '<tr><td colspan="8" style="text-align:center; color:#94a3b8; padding:18px;">材料ピンがまだありません。パース画面をクリックして材料を追加してください。</td></tr>'}
-            </tbody>
-          </table>
-        `;
-        card.appendChild(tableSection);
-
-        // テーブル行のドラッグ＆ドロップ設定
-        const rows = tableSection.querySelectorAll('.sortable-row');
-        rows.forEach(row => {
-          row.addEventListener('dragstart', (e) => {
-            row.classList.add('row-dragging');
-            e.dataTransfer.setData('text/plain', row.dataset.pIndex);
-          });
-          row.addEventListener('dragend', () => {
-            row.classList.remove('row-dragging');
-            rows.forEach(r => r.classList.remove('row-drag-over'));
-          });
-          row.addEventListener('dragover', (e) => {
-            e.preventDefault();
-            row.classList.add('row-drag-over');
-          });
-          row.addEventListener('dragleave', () => {
-            row.classList.remove('row-drag-over');
-          });
-          row.addEventListener('drop', (e) => {
-            e.preventDefault();
-            row.classList.remove('row-drag-over');
-            const fromIdx = parseInt(e.dataTransfer.getData('text/plain'), 10);
-            const toIdx = parseInt(row.dataset.pIndex, 10);
-            if (fromIdx !== toIdx && !isNaN(fromIdx)) {
-              const movedPin = slide.pins.splice(fromIdx, 1)[0];
-              slide.pins.splice(toIdx, 0, movedPin);
-              renderPages();
+        imgWrapper.appendChild(imgStage);
+      } else {
+        const placeholder = document.createElement('div');
+        placeholder.className = 'empty-image-placeholder';
+        placeholder.innerHTML = `クリックしてこのスライドにパース画像を設定<br><span style="font-size:11px; color:#64748b;">(JPG / PNG)</span>`;
+        placeholder.onclick = () => {
+          const input = document.createElement('input');
+          input.type = 'file';
+          input.accept = 'image/*';
+          input.onchange = (e) => {
+            const f = e.target.files[0];
+            if (f) {
+              const r = new FileReader();
+              r.onload = (ev) => {
+                slide.imageSrc = ev.target.result;
+                renderPages();
+              };
+              r.readAsDataURL(f);
             }
-          });
-        });
+          };
+          input.click();
+        };
+        imgWrapper.appendChild(placeholder);
       }
 
+      card.appendChild(imgWrapper);
       container.appendChild(card);
     });
-  }
 
-  function moveCard(index, direction) {
-    const targetIndex = index + direction;
-    if (targetIndex < 0 || targetIndex >= projectData.pageOrder.length) return;
-    const item = projectData.pageOrder.splice(index, 1)[0];
-    projectData.pageOrder.splice(targetIndex, 0, item);
-    renderPages();
+    // 2. 一番最後のページに「全パース共通 材料仕上表」を描画
+    const masterCard = document.createElement('div');
+    masterCard.className = 'page-card';
+    masterCard.innerHTML = `
+      <div class="card-header">
+        <div class="card-title-group">
+          <span class="card-badge master">最終ページ</span>
+          <div style="font-size:17px; font-weight:bold;">プロジェクト共通 材料仕上表</div>
+        </div>
+        <button class="btn btn-outline btn-add-mat" style="font-size:12px;" onclick="openAddMaterialDirectModal()">＋ 新規材料を追加</button>
+      </div>
+      <div class="table-section">
+        <table>
+          <thead>
+            <tr>
+              <th class="col-handle" style="width:28px;"></th>
+              <th style="width:55px; min-width:55px; text-align:center;">No.</th>
+              <th style="width:75px; min-width:75px; text-align:center;">材料写真</th>
+              <th style="width:160px;">使用部位</th>
+              <th>仕様・仕上げ詳細</th>
+              <th style="width:160px;">メーカー</th>
+              <th style="width:140px;">カタログ / 承認図</th>
+              <th style="width:90px; text-align:center;">操作</th>
+            </tr>
+          </thead>
+          <tbody id="masterTableBody"></tbody>
+        </table>
+      </div>
+    `;
+
+    const tbody = masterCard.querySelector('#masterTableBody');
+    let rowsHtml = '';
+
+    projectData.materials.forEach((mat, mIndex) => {
+      const displayNo = (mat.customNo !== undefined && mat.customNo !== '') ? mat.customNo : (mIndex + 1);
+      rowsHtml += `
+        <tr class="sortable-row" draggable="true" data-m-index="${mIndex}">
+          <td class="row-drag-handle" title="ドラッグして行を並替">⠿</td>
+          <td style="width:55px; min-width:55px; text-align:center; padding:4px;">
+            <input type="text" class="no-input" value="${displayNo}" onchange="updateMaterialNo('${mat.id}', this.value)" title="番号を直接変更できます">
+          </td>
+          <td style="width:75px; min-width:75px; text-align:center; padding:4px;">
+            ${mat.materialImg ? `<img src="${mat.materialImg}" class="table-mat-thumb" alt="材料写真">` : '<span style="color:#94a3b8; font-size:10px;">なし</span>'}
+          </td>
+          <td style="width:160px;"><strong>■${mat.part}</strong></td>
+          <td style="white-space:pre-line;">${mat.specs}</td>
+          <td style="width:160px;">${mat.maker || '-'}</td>
+          <td style="width:140px;">${mat.url ? `<a href="${mat.url}" target="_blank" rel="noopener noreferrer" style="color:#2563eb; font-weight:bold;">リンクを開く</a>` : '-'}</td>
+          <td style="width:90px; text-align:center;">
+            <div class="table-btn-group">
+              <button class="action-btn-edit" onclick="openEditMaterialModal('${mat.id}')">編集</button>
+              <button class="action-btn-del" onclick="deleteMaterial('${mat.id}')">削除</button>
+            </div>
+          </td>
+        </tr>
+      `;
+    });
+
+    tbody.innerHTML = rowsHtml || '<tr><td colspan="8" style="text-align:center; color:#94a3b8; padding:24px;">材料がまだ登録されていません。パース上をクリックするか、「＋ 新規材料を追加」から登録してください。</td></tr>';
+
+    // テーブル行のドラッグ並べ替え
+    const rows = masterCard.querySelectorAll('.sortable-row');
+    rows.forEach(row => {
+      row.addEventListener('dragstart', (e) => {
+        row.classList.add('row-dragging');
+        e.dataTransfer.setData('text/plain', row.dataset.mIndex);
+      });
+      row.addEventListener('dragend', () => {
+        row.classList.remove('row-dragging');
+        rows.forEach(r => r.classList.remove('row-drag-over'));
+      });
+      row.addEventListener('dragover', (e) => { e.preventDefault(); row.classList.add('row-drag-over'); });
+      row.addEventListener('dragleave', () => row.classList.remove('row-drag-over'));
+      row.addEventListener('drop', (e) => {
+        e.preventDefault();
+        row.classList.remove('row-drag-over');
+        const fromIdx = parseInt(e.dataTransfer.getData('text/plain'), 10);
+        const toIdx = parseInt(row.dataset.mIndex, 10);
+        if (fromIdx !== toIdx && !isNaN(fromIdx)) {
+          const moved = projectData.materials.splice(fromIdx, 1)[0];
+          projectData.materials.splice(toIdx, 0, moved);
+          renderPages();
+        }
+      });
+    });
+
+    container.appendChild(masterCard);
   }
 
   document.addEventListener('click', () => {
@@ -842,38 +858,64 @@
     document.getElementById('inputMaterialImg').value = '';
   }
 
+  // パース上をクリックしてピンを追加するモーダル
   function openAddPinModal(slideId, x, y) {
     activeSlideId = slideId;
-    tempCoords = { x, y };
-    editingPinId = null;
-    clearMaterialImg();
+    tempPinCoords = { x, y };
+    editingMaterialId = null;
 
-    document.getElementById('modalTitle').textContent = "材料仕様の追加";
-    document.getElementById('inputPart').value = '';
-    document.getElementById('inputSpecs').value = '';
-    document.getElementById('inputMaker').value = '';
-    document.getElementById('inputUrl').value = '';
+    document.getElementById('modalTitle').textContent = "パースに材料ピンを配置";
+    document.getElementById('syncNote').style.display = "none";
+    document.getElementById('groupMatSelect').style.display = "block";
+
+    // セレクトボックスに登録済み材料をセット
+    const sel = document.getElementById('modalMatSelect');
+    sel.innerHTML = '<option value="new">＋ 新しい材料として登録して配置</option>';
+    projectData.materials.forEach((m, idx) => {
+      const no = (m.customNo !== undefined && m.customNo !== '') ? m.customNo : (idx + 1);
+      sel.innerHTML += `<option value="${m.id}">No.${no} ■${m.part} (${m.maker || 'メーカー未設定'})</option>`;
+    });
+
+    sel.value = "new";
+    resetModalFields(String(projectData.materials.length + 1));
     document.getElementById('modalOverlay').style.display = 'flex';
   }
 
-  function openEditPinModal(slideId, pinId) {
-    activeSlideId = slideId;
-    editingPinId = pinId;
+  // 材料表から直接新規追加するモーダル
+  function openAddMaterialDirectModal() {
+    activeSlideId = null;
+    tempPinCoords = null;
+    editingMaterialId = null;
 
-    const slide = projectData.slides.find(s => s.id === slideId);
-    if (!slide) return;
-    const pin = slide.pins.find(p => p.id === pinId);
-    if (!pin) return;
+    document.getElementById('modalTitle').textContent = "新しい材料仕様を登録";
+    document.getElementById('syncNote').style.display = "none";
+    document.getElementById('groupMatSelect').style.display = "none";
 
-    const displayNo = (pin.customNo !== undefined && pin.customNo !== '') ? pin.customNo : (slide.pins.indexOf(pin) + 1);
-    document.getElementById('modalTitle').textContent = `材料仕様の編集 (No.${displayNo})`;
-    document.getElementById('inputPart').value = pin.part || '';
-    document.getElementById('inputSpecs').value = pin.specs || '';
-    document.getElementById('inputMaker').value = pin.maker || '';
-    document.getElementById('inputUrl').value = pin.url || '';
+    resetModalFields(String(projectData.materials.length + 1));
+    document.getElementById('modalOverlay').style.display = 'flex';
+  }
 
-    if (pin.materialImg) {
-      tempMaterialImgSrc = pin.materialImg;
+  // 材料を編集するモーダル（全パース＆表で連動）
+  function openEditMaterialModal(matId) {
+    activeSlideId = null;
+    tempPinCoords = null;
+    editingMaterialId = matId;
+
+    const mat = projectData.materials.find(m => m.id === matId);
+    if (!mat) return;
+
+    document.getElementById('modalTitle').textContent = "材料仕様の編集（全パース一括連動）";
+    document.getElementById('syncNote').style.display = "block";
+    document.getElementById('groupMatSelect').style.display = "none";
+
+    document.getElementById('inputCustomNo').value = (mat.customNo !== undefined && mat.customNo !== '') ? mat.customNo : (projectData.materials.indexOf(mat) + 1);
+    document.getElementById('inputPart').value = mat.part || '';
+    document.getElementById('inputSpecs').value = mat.specs || '';
+    document.getElementById('inputMaker').value = mat.maker || '';
+    document.getElementById('inputUrl').value = mat.url || '';
+
+    if (mat.materialImg) {
+      tempMaterialImgSrc = mat.materialImg;
       document.getElementById('materialImgPreview').src = tempMaterialImgSrc;
       document.getElementById('materialImgPreviewBox').style.display = 'flex';
     } else {
@@ -883,49 +925,110 @@
     document.getElementById('modalOverlay').style.display = 'flex';
   }
 
+  function onMatSelectChange() {
+    const selVal = document.getElementById('modalMatSelect').value;
+    if (selVal === 'new') {
+      resetModalFields(String(projectData.materials.length + 1));
+    } else {
+      const mat = projectData.materials.find(m => m.id === selVal);
+      if (mat) {
+        document.getElementById('inputCustomNo').value = (mat.customNo !== undefined && mat.customNo !== '') ? mat.customNo : (projectData.materials.indexOf(mat) + 1);
+        document.getElementById('inputPart').value = mat.part;
+        document.getElementById('inputSpecs').value = mat.specs;
+        document.getElementById('inputMaker').value = mat.maker;
+        document.getElementById('inputUrl').value = mat.url;
+        if (mat.materialImg) {
+          tempMaterialImgSrc = mat.materialImg;
+          document.getElementById('materialImgPreview').src = tempMaterialImgSrc;
+          document.getElementById('materialImgPreviewBox').style.display = 'flex';
+        } else {
+          clearMaterialImg();
+        }
+      }
+    }
+  }
+
+  function resetModalFields(defaultNo = "") {
+    document.getElementById('inputCustomNo').value = defaultNo;
+    document.getElementById('inputPart').value = '';
+    document.getElementById('inputSpecs').value = '';
+    document.getElementById('inputMaker').value = '';
+    document.getElementById('inputUrl').value = '';
+    clearMaterialImg();
+  }
+
   function closeModal() {
     document.getElementById('modalOverlay').style.display = 'none';
   }
 
-  function savePinData() {
-    const slide = projectData.slides.find(s => s.id === activeSlideId);
-    if (!slide) return;
-
+  // モーダルの保存実行
+  function saveModalData() {
+    const customNo = document.getElementById('inputCustomNo').value.trim();
     const part = document.getElementById('inputPart').value || '未設定';
     const specs = document.getElementById('inputSpecs').value || '';
     const maker = document.getElementById('inputMaker').value || '';
     const url = document.getElementById('inputUrl').value || '';
 
-    if (editingPinId !== null) {
-      const pin = slide.pins.find(p => p.id === editingPinId);
-      if (pin) {
-        pin.part = part;
-        pin.specs = specs;
-        pin.maker = maker;
-        pin.url = url;
-        pin.materialImg = tempMaterialImgSrc;
+    let targetMatId = editingMaterialId;
+
+    if (editingMaterialId !== null) {
+      // 1. 既存材料の編集（全パース＆表連動）
+      const mat = projectData.materials.find(m => m.id === editingMaterialId);
+      if (mat) {
+        mat.customNo = customNo;
+        mat.part = part;
+        mat.specs = specs;
+        mat.maker = maker;
+        mat.url = url;
+        mat.materialImg = tempMaterialImgSrc;
       }
     } else {
-      slide.pins.push({
-        id: Date.now() + Math.random(),
-        x: tempCoords.x,
-        y: tempCoords.y,
-        part, specs, maker, url,
-        materialImg: tempMaterialImgSrc,
-        customNo: ''
-      });
+      // 2. ピン追加または新規材料作成
+      const selVal = document.getElementById('modalMatSelect') ? document.getElementById('modalMatSelect').value : 'new';
+      
+      if (activeSlideId && selVal !== 'new') {
+        // 既存材料を選択してピン配置
+        targetMatId = selVal;
+        // 選択された既存材料の内容も上書き同期
+        const mat = projectData.materials.find(m => m.id === selVal);
+        if (mat) {
+          mat.customNo = customNo;
+          mat.part = part;
+          mat.specs = specs;
+          mat.maker = maker;
+          mat.url = url;
+          mat.materialImg = tempMaterialImgSrc;
+        }
+      } else {
+        // 新規材料として作成
+        targetMatId = 'mat_' + Date.now() + Math.random().toString(36).substring(2, 6);
+        projectData.materials.push({
+          id: targetMatId,
+          customNo: customNo,
+          part: part,
+          specs: specs,
+          maker: maker,
+          url: url,
+          materialImg: tempMaterialImgSrc
+        });
+      }
+
+      // パース上からのピン配置だった場合、ピンをスライドに追加
+      if (activeSlideId && tempPinCoords) {
+        const slide = projectData.slides.find(s => s.id === activeSlideId);
+        if (slide) {
+          slide.pins.push({
+            id: Date.now() + Math.random(),
+            materialId: targetMatId,
+            x: tempPinCoords.x,
+            y: tempPinCoords.y
+          });
+        }
+      }
     }
 
     closeModal();
     renderPages();
-  }
-
-  function deletePin(slideId, pinId) {
-    const slide = projectData.slides.find(s => s.id === slideId);
-    if (slide) {
-      slide.pins = slide.pins.filter(p => p.id !== pinId);
-      renderPages();
-    }
   }
 
   function exportProjectJSON() {
@@ -944,17 +1047,26 @@
         try {
           const loaded = JSON.parse(event.target.result);
           if (loaded.slides) {
-            projectData.slides = loaded.slides;
-            // 互換性対応
-            if (loaded.pageOrder && loaded.pageOrder.length > 0) {
-              projectData.pageOrder = loaded.pageOrder;
-            } else {
-              projectData.pageOrder = [];
-              projectData.slides.forEach(s => {
-                projectData.pageOrder.push({ id: 'p-' + s.id, type: 'perspective', slideId: s.id });
-                projectData.pageOrder.push({ id: 't-' + s.id, type: 'table', slideId: s.id });
+            // 旧バージョンデータ互換性対応
+            if (!loaded.materials) {
+              loaded.materials = [];
+              loaded.slides.forEach(s => {
+                s.pins.forEach((p, pIdx) => {
+                  const mId = 'mat_' + Date.now() + Math.random().toString(36).substring(2, 6);
+                  loaded.materials.push({
+                    id: mId,
+                    customNo: p.customNo || String(pIdx + 1),
+                    part: p.part || '',
+                    specs: p.specs || '',
+                    maker: p.maker || '',
+                    url: p.url || '',
+                    materialImg: p.materialImg || null
+                  });
+                  p.materialId = mId;
+                });
               });
             }
+            projectData = loaded;
             renderPages();
           }
         } catch(err) { alert('JSONの読み込みに失敗しました。'); }
@@ -963,7 +1075,7 @@
     }
   });
 
-  // 閲覧専用HTMLの書き出し
+  // 閲覧専用HTML書き出し
   function exportReadOnlyHTML() {
     const serializedData = JSON.stringify(projectData);
     const readOnlyContent = `<!DOCTYPE html>
@@ -1020,53 +1132,58 @@
 <script>
   const data = ${serializedData};
   const container = document.getElementById('pagesContainer');
-  data.pageOrder.forEach(item => {
-    const slide = data.slides.find(s => s.id === item.slideId);
-    if (!slide) return;
+
+  // 各パース画面
+  data.slides.forEach((slide, idx) => {
     const card = document.createElement('div');
     card.className = 'page-card';
-    const isPers = item.type === 'perspective';
-    card.innerHTML = '<div class="card-title">' + (slide.title || 'パース') + (isPers ? ' (パース)' : ' (材料仕上表)') + '</div>';
-    
-    if (isPers) {
-      const wrapper = document.createElement('div');
-      wrapper.className = 'image-wrapper';
-      if (slide.imageSrc) {
-        const stage = document.createElement('div');
-        stage.className = 'image-stage';
-        const img = document.createElement('img');
-        img.src = slide.imageSrc;
-        stage.appendChild(img);
-        slide.pins.forEach((pin, idx) => {
-          const no = (pin.customNo !== undefined && pin.customNo !== '') ? pin.customNo : (idx + 1);
-          const pEl = document.createElement('div');
-          pEl.className = 'pin';
-          pEl.style.left = pin.x + '%';
-          pEl.style.top = pin.y + '%';
-          pEl.textContent = no;
-          pEl.onclick = (e) => { e.stopPropagation(); document.querySelectorAll('.pin').forEach(p => p !== pEl && p.classList.remove('is-active')); pEl.classList.toggle('is-active'); };
-          const pop = document.createElement('div');
-          pop.className = 'pin-popup';
-          pop.onclick = (e) => e.stopPropagation();
-          pop.innerHTML = (pin.materialImg ? '<div class="popup-mat-img"><img src="' + pin.materialImg + '" alt="材料写真"></div>' : '') + '<div class="popup-title">No.' + no + ' ' + pin.part + '</div><div>' + pin.specs.replace(/\\n/g, '<br>') + '</div>' + (pin.maker ? '<div style="color:#94a3b8;margin-top:4px;">/' + pin.maker + '</div>' : '') + (pin.url ? '<a class="popup-link" href="' + pin.url + '" target="_blank" rel="noopener noreferrer">メーカー詳細を開く →</a>' : '');
-          pEl.appendChild(pop);
-          stage.appendChild(pEl);
-        });
-        wrapper.appendChild(stage);
-      }
-      card.appendChild(wrapper);
-    } else {
-      let rows = '';
-      slide.pins.forEach((pin, idx) => {
-        const no = (pin.customNo !== undefined && pin.customNo !== '') ? pin.customNo : (idx + 1);
-        rows += '<tr><td style="font-weight:bold;text-align:center;width:55px;min-width:55px;">' + no + '</td><td style="width:75px;min-width:75px;text-align:center;padding:4px;">' + (pin.materialImg ? '<img src="' + pin.materialImg + '" class="table-mat-thumb" alt="材料写真">' : '<span style="color:#94a3b8;font-size:10px;">なし</span>') + '</td><td style="width:160px;"><strong>■' + pin.part + '</strong></td><td style="white-space:pre-line;">' + pin.specs + '</td><td style="width:160px;">' + (pin.maker||'-') + '</td><td style="width:140px;">' + (pin.url ? '<a href="' + pin.url + '" target="_blank" rel="noopener noreferrer" style="color:#2563eb;font-weight:bold;">リンクを開く</a>' : '-') + '</td></tr>';
+    card.innerHTML = '<div class="card-title">' + (slide.title || ('パース画面 ' + (idx + 1))) + '</div>';
+    const wrapper = document.createElement('div');
+    wrapper.className = 'image-wrapper';
+    if (slide.imageSrc) {
+      const stage = document.createElement('div');
+      stage.className = 'image-stage';
+      const img = document.createElement('img');
+      img.src = slide.imageSrc;
+      stage.appendChild(img);
+
+      slide.pins.forEach(pin => {
+        const mat = data.materials.find(m => m.id === pin.materialId);
+        if (!mat) return;
+        const no = (mat.customNo !== undefined && mat.customNo !== '') ? mat.customNo : (data.materials.indexOf(mat) + 1);
+        const pEl = document.createElement('div');
+        pEl.className = 'pin';
+        pEl.style.left = pin.x + '%';
+        pEl.style.top = pin.y + '%';
+        pEl.textContent = no;
+        pEl.onclick = (e) => { e.stopPropagation(); document.querySelectorAll('.pin').forEach(p => p !== pEl && p.classList.remove('is-active')); pEl.classList.toggle('is-active'); };
+        const pop = document.createElement('div');
+        pop.className = 'pin-popup';
+        pop.onclick = (e) => e.stopPropagation();
+        pop.innerHTML = (mat.materialImg ? '<div class="popup-mat-img"><img src="' + mat.materialImg + '" alt="材料写真"></div>' : '') + '<div class="popup-title">No.' + no + ' ' + mat.part + '</div><div>' + mat.specs.replace(/\\n/g, '<br>') + '</div>' + (mat.maker ? '<div style="color:#94a3b8;margin-top:4px;">/' + mat.maker + '</div>' : '') + (mat.url ? '<a class="popup-link" href="' + mat.url + '" target="_blank" rel="noopener noreferrer">メーカー詳細を開く →</a>' : '');
+        pEl.appendChild(pop);
+        stage.appendChild(pEl);
       });
-      const tbl = document.createElement('div');
-      tbl.innerHTML = '<table><thead><tr><th style="width:55px;min-width:55px;text-align:center;">No.</th><th style="width:75px;min-width:75px;text-align:center;">材料写真</th><th style="width:160px;">使用部位</th><th>仕様・仕上げ詳細</th><th style="width:160px;">メーカー</th><th style="width:140px;">カタログ / 承認図</th></tr></thead><tbody>' + (rows || '<tr><td colspan="6" style="text-align:center;color:#94a3b8;padding:18px;">材料指定なし</td></tr>') + '</tbody></table>';
-      card.appendChild(tbl);
+      wrapper.appendChild(stage);
     }
+    card.appendChild(wrapper);
     container.appendChild(card);
   });
+
+  // 最終ページ：プロジェクト共通材料表
+  const masterCard = document.createElement('div');
+  masterCard.className = 'page-card';
+  masterCard.innerHTML = '<div class="card-title">プロジェクト共通 材料仕上表</div>';
+  let rows = '';
+  data.materials.forEach((mat, idx) => {
+    const no = (mat.customNo !== undefined && mat.customNo !== '') ? mat.customNo : (idx + 1);
+    rows += '<tr><td style="font-weight:bold;text-align:center;width:55px;min-width:55px;">' + no + '</td><td style="width:75px;min-width:75px;text-align:center;padding:4px;">' + (mat.materialImg ? '<img src="' + mat.materialImg + '" class="table-mat-thumb" alt="材料写真">' : '<span style="color:#94a3b8;font-size:10px;">なし</span>') + '</td><td style="width:160px;"><strong>■' + mat.part + '</strong></td><td style="white-space:pre-line;">' + mat.specs + '</td><td style="width:160px;">' + (mat.maker||'-') + '</td><td style="width:140px;">' + (mat.url ? '<a href="' + mat.url + '" target="_blank" rel="noopener noreferrer" style="color:#2563eb;font-weight:bold;">リンクを開く</a>' : '-') + '</td></tr>';
+  });
+  const tbl = document.createElement('div');
+  tbl.innerHTML = '<table><thead><tr><th style="width:55px;min-width:55px;text-align:center;">No.</th><th style="width:75px;min-width:75px;text-align:center;">材料写真</th><th style="width:160px;">使用部位</th><th>仕様・仕上げ詳細</th><th style="width:160px;">メーカー</th><th style="width:140px;">カタログ / 承認図</th></tr></thead><tbody>' + (rows || '<tr><td colspan="6" style="text-align:center;color:#94a3b8;padding:24px;">材料登録なし</td></tr>') + '</tbody></table>';
+  masterCard.appendChild(tbl);
+  container.appendChild(masterCard);
+
   document.addEventListener('click', () => document.querySelectorAll('.pin').forEach(p => p.classList.remove('is-active')));
 <\/script>
 </body>
