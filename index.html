@@ -962,6 +962,9 @@
   let selectedSlideIds = new Set();
   let isLibraryForSingleApply = false;
   let cachedHistoryList = [];
+  
+  // ドラッグ操作直後のクリック誤爆防止タイムスタンプ
+  let lastPinDragEndTime = 0;
 
   function showToast(msg) {
     const toast = document.getElementById('toastNotification');
@@ -1835,7 +1838,10 @@
         imgStage.appendChild(img);
 
         imgStage.addEventListener('click', (e) => {
+          // ドラッグ直後（350ms以内）はクリック誤爆を完全に無視する
+          if (Date.now() - lastPinDragEndTime < 350) return;
           if (e.target.closest('.pin')) return;
+          
           const rect = imgStage.getBoundingClientRect();
           const x = ((e.clientX - rect.left) / rect.width) * 100;
           const y = ((e.clientY - rect.top) / rect.height) * 100;
@@ -1932,6 +1938,8 @@
               pinEl.style.opacity = '1';
 
               if (moved) {
+                lastPinDragEndTime = Date.now(); // ドラッグ完了時刻を記録して誤爆防止
+                
                 const elemBelow = document.elementFromPoint(ev.clientX, ev.clientY);
                 const targetStage = elemBelow ? elemBelow.closest('.image-stage') : null;
 
@@ -1982,7 +1990,7 @@
 
           pinEl.addEventListener('click', (e) => {
             e.stopPropagation();
-            if (moved) return;
+            if (moved || (Date.now() - lastPinDragEndTime < 350)) return;
             document.querySelectorAll('.pin').forEach(p => {
               if (p !== pinEl) p.classList.remove('is-active');
             });
@@ -2039,7 +2047,7 @@
       container.appendChild(card);
     });
 
-    // 2. 最終ページ：共通材料仕上表
+    // 2. 共通材料仕上表（「最終ページ」の文字は削除済み）
     const masterCard = document.createElement('div');
     masterCard.className = 'page-card master-card';
     masterCard.draggable = false;
@@ -2516,15 +2524,5 @@
 
   document.addEventListener('click', () => document.querySelectorAll('.pin').forEach(p => p.classList.remove('is-active')));
 <\/script>
-</body>
-</html>`;
-
-    const blob = new Blob([readOnlyContent], { type: "text/html;charset=utf-8" });
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = `material_viewer_${(projectData.projectName || 'readonly')}_${(projectData.updatedDate || '').replace(/\//g, '')}.html`;
-    a.click();
-  }
-</script>
 </body>
 </html>
