@@ -1,0 +1,610 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>マルチスライド 材料仕上パースビューア</title>
+<style>
+  :root {
+    --primary: #2563eb;
+    --primary-hover: #1d4ed8;
+    --bg-main: #f1f5f9;
+    --card-bg: #ffffff;
+    --border: #cbd5e1;
+    --pin-bg: #0f172a;
+    --pin-accent: #38bdf8;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: "Hiragino Kaku Gothic ProN", "Yu Gothic", "Meiryo", sans-serif;
+    background: var(--bg-main);
+    color: #1e293b;
+    padding-bottom: 80px;
+  }
+
+  /* 上部固定ツールバー */
+  .toolbar {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: #ffffff;
+    border-bottom: 2px solid var(--border);
+    padding: 12px 24px;
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+  }
+  .btn {
+    background: var(--primary);
+    color: #fff;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: 0.15s;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .btn:hover { background: var(--primary-hover); }
+  .btn-secondary { background: #64748b; }
+  .btn-secondary:hover { background: #475569; }
+  .btn-outline {
+    background: transparent;
+    color: #475569;
+    border: 1px solid var(--border);
+  }
+  .btn-outline:hover { background: #f8fafc; color: #1e293b; }
+  .btn-danger { background: #ef4444; }
+  .btn-danger:hover { background: #dc2626; }
+  .file-label { cursor: pointer; }
+  input[type="file"] { display: none; }
+
+  /* スライドコンテナ一覧 */
+  .slides-container {
+    max-width: 1400px;
+    margin: 24px auto;
+    display: flex;
+    flex-direction: column;
+    gap: 32px;
+    padding: 0 16px;
+  }
+
+  /* 個別スライドカード */
+  .slide-card {
+    background: var(--card-bg);
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+    padding: 20px 24px 24px 24px;
+    position: relative;
+  }
+  .slide-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+    border-bottom: 1px solid #e2e8f0;
+    padding-bottom: 10px;
+  }
+  .slide-title-input {
+    font-size: 16px;
+    font-weight: bold;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    padding: 4px 8px;
+    width: 400px;
+  }
+  .slide-title-input:hover, .slide-title-input:focus {
+    border-color: var(--border);
+    background: #f8fafc;
+  }
+  .slide-actions {
+    display: flex;
+    gap: 8px;
+  }
+
+  /* パース表示枠 */
+  .image-wrapper {
+    position: relative;
+    width: 100%;
+    background: #0f172a;
+    border-radius: 6px;
+    overflow: visible;
+    cursor: crosshair;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 280px;
+  }
+  .image-wrapper img {
+    width: 100%;
+    display: block;
+    user-select: none;
+  }
+  .empty-image-placeholder {
+    color: #94a3b8;
+    font-size: 14px;
+    padding: 40px;
+    text-align: center;
+    cursor: pointer;
+  }
+
+  /* ピン */
+  .pin {
+    position: absolute;
+    width: 28px;
+    height: 28px;
+    background: var(--pin-bg);
+    color: #fff;
+    border: 2px solid var(--pin-accent);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    font-weight: bold;
+    transform: translate(-50%, -50%);
+    cursor: pointer;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.5);
+    z-index: 10;
+    transition: transform 0.15s, background 0.15s;
+  }
+  .pin:hover, .pin.is-active {
+    transform: translate(-50%, -50%) scale(1.15);
+    background: var(--primary);
+    z-index: 50;
+  }
+
+  /* ポップアップ詳細 */
+  .pin-popup {
+    position: absolute;
+    bottom: 34px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 260px;
+    background: rgba(15, 23, 42, 0.96);
+    color: #fff;
+    padding: 12px 14px;
+    border-radius: 6px;
+    font-size: 11.5px;
+    line-height: 1.45;
+    display: none;
+    z-index: 60;
+    box-shadow: 0 6px 20px rgba(0,0,0,0.35);
+    cursor: default;
+  }
+  /* カーソル移動用の透明ブリッジ（隙間で消えるのを防止） */
+  .pin-popup::after {
+    content: '';
+    position: absolute;
+    bottom: -16px;
+    left: 0;
+    width: 100%;
+    height: 20px;
+    background: transparent;
+  }
+  .pin:hover .pin-popup, .pin.is-active .pin-popup {
+    display: block;
+  }
+  .popup-title { font-weight: bold; color: var(--pin-accent); margin-bottom: 5px; font-size: 12px; }
+  .popup-link {
+    display: inline-block;
+    margin-top: 8px;
+    color: #38bdf8;
+    text-decoration: underline;
+    font-weight: bold;
+    cursor: pointer;
+  }
+  .popup-link:hover { color: #7dd3fc; }
+
+  /* 下部テーブル */
+  .table-section {
+    margin-top: 18px;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+  }
+  th, td {
+    border: 1px solid var(--border);
+    padding: 8px 10px;
+    text-align: left;
+    vertical-align: top;
+  }
+  th { background: #f8fafc; font-weight: bold; }
+  .action-btn-del {
+    color: #ef4444;
+    cursor: pointer;
+    background: none;
+    border: none;
+    font-size: 11px;
+    text-decoration: underline;
+  }
+
+  /* モーダル */
+  .modal-overlay {
+    position: fixed;
+    top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(0,0,0,0.5);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 200;
+  }
+  .modal {
+    background: #fff;
+    padding: 22px;
+    border-radius: 8px;
+    width: 440px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+  }
+  .modal h3 { margin-bottom: 14px; font-size: 15px; }
+  .form-group { margin-bottom: 12px; }
+  .form-group label { display: block; font-size: 12px; font-weight: bold; margin-bottom: 4px; }
+  .form-group input, .form-group textarea {
+    width: 100%;
+    padding: 8px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    font-size: 12px;
+  }
+  .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+
+  /* A3横 印刷設定 */
+  @page { size: A3 landscape; margin: 10mm; }
+  @media print {
+    body { background: #fff; padding: 0; }
+    .toolbar, .modal-overlay, .slide-actions, .action-btn-del, th:last-child, td:last-child {
+      display: none !important;
+    }
+    .slides-container { max-width: 100%; margin: 0; padding: 0; gap: 0; }
+    .slide-card {
+      border: none;
+      box-shadow: none;
+      padding: 0;
+      page-break-after: always;
+      break-after: page;
+      height: 100%;
+      min-height: 270mm;
+    }
+    .slide-title-input { border: none; font-size: 18pt; padding: 0; }
+    .image-wrapper { background: none; max-height: 160mm; }
+    .image-wrapper img { max-height: 160mm; object-fit: contain; }
+    .pin {
+      background: #000 !important;
+      color: #fff !important;
+      border: 1.5px solid #000 !important;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+    .pin-popup { display: none !important; }
+  }
+</style>
+</head>
+<body>
+
+<div class="toolbar">
+  <label class="btn file-label">
+    ＋ パース画像を一括追加 (複数選択可)
+    <input type="file" id="batchImageInput" accept="image/*" multiple>
+  </label>
+  <button class="btn btn-outline" onclick="addEmptySlide()">＋ 空白スライドを追加</button>
+  
+  <div style="margin-left: auto; display: flex; gap: 8px;">
+    <button class="btn btn-secondary" onclick="exportProjectJSON()">プロジェクト保存 (JSON)</button>
+    <label class="btn btn-secondary file-label">
+      プロジェクト読込 (JSON)
+      <input type="file" id="projectJsonInput" accept=".json">
+    </label>
+    <button class="btn" onclick="window.print()">A3全ページ印刷 / PDF出力</button>
+  </div>
+</div>
+
+<div class="slides-container" id="slidesContainer"></div>
+
+<!-- モーダル -->
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal">
+    <h3 id="modalTitle">材料仕様の追加</h3>
+    <div class="form-group">
+      <label>使用部位 (例: 低層部妻壁一部)</label>
+      <input type="text" id="inputPart" placeholder="部位名">
+    </div>
+    <div class="form-group">
+      <label>仕様・仕上げ詳細 (改行可)</label>
+      <textarea id="inputSpecs" rows="3" placeholder="600角タイル イモ貼&#13;&#10;バサルテック AE-AM&#13;&#10;セメント目地 黒"></textarea>
+    </div>
+    <div class="form-group">
+      <label>メーカー (例: アドヴァン / 長江陶業)</label>
+      <input type="text" id="inputMaker" placeholder="メーカー名">
+    </div>
+    <div class="form-group">
+      <label>カタログ / 参考URL (任意)</label>
+      <input type="url" id="inputUrl" placeholder="https://...">
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeModal()">キャンセル</button>
+      <button class="btn" onclick="savePinData()">保存</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  let projectData = { slides: [] };
+  let activeSlideId = null;
+  let tempCoords = null;
+
+  window.addEventListener('DOMContentLoaded', () => {
+    if (projectData.slides.length === 0) {
+      addEmptySlide("外観・アプローチ パース");
+    }
+  });
+
+  // 画像一括追加
+  document.getElementById('batchImageInput').addEventListener('change', function(e) {
+    const files = Array.from(e.target.files);
+    if (!files.length) return;
+
+    files.forEach((file) => {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const titleName = file.name.replace(/\.[^/.]+$/, "");
+        projectData.slides.push({
+          id: Date.now() + Math.random(),
+          title: titleName,
+          imageSrc: event.target.result,
+          pins: []
+        });
+        renderSlides();
+      };
+      reader.readAsDataURL(file);
+    });
+    this.value = "";
+  });
+
+  function addEmptySlide(defaultTitle = "") {
+    const slideNumber = projectData.slides.length + 1;
+    projectData.slides.push({
+      id: Date.now() + Math.random(),
+      title: defaultTitle || `スライド ${slideNumber}`,
+      imageSrc: null,
+      pins: []
+    });
+    renderSlides();
+  }
+
+  function deleteSlide(slideId) {
+    if (confirm("このスライドを削除しますか？")) {
+      projectData.slides = projectData.slides.filter(s => s.id !== slideId);
+      renderSlides();
+    }
+  }
+
+  function moveSlide(index, direction) {
+    const targetIndex = index + direction;
+    if (targetIndex < 0 || targetIndex >= projectData.slides.length) return;
+    const item = projectData.slides.splice(index, 1)[0];
+    projectData.slides.splice(targetIndex, 0, item);
+    renderSlides();
+  }
+
+  function renderSlides() {
+    const container = document.getElementById('slidesContainer');
+    container.innerHTML = "";
+
+    projectData.slides.forEach((slide, sIndex) => {
+      const slideEl = document.createElement('div');
+      slideEl.className = 'slide-card';
+      slideEl.id = `slide-${slide.id}`;
+
+      // ヘッダー
+      const header = document.createElement('div');
+      header.className = 'slide-header';
+      header.innerHTML = `
+        <input class="slide-title-input" type="text" value="${slide.title}" onchange="updateSlideTitle(${slide.id}, this.value)" placeholder="パース名を入力">
+        <div class="slide-actions">
+          <button class="btn btn-outline" style="padding:4px 8px;" onclick="moveSlide(${sIndex}, -1)" ${sIndex === 0 ? 'disabled' : ''}>▲ 上へ</button>
+          <button class="btn btn-outline" style="padding:4px 8px;" onclick="moveSlide(${sIndex}, 1)" ${sIndex === projectData.slides.length - 1 ? 'disabled' : ''}>▼ 下へ</button>
+          <button class="btn btn-danger" style="padding:4px 8px;" onclick="deleteSlide(${slide.id})">スライド削除</button>
+        </div>
+      `;
+      slideEl.appendChild(header);
+
+      // 画像エリア
+      const imgWrapper = document.createElement('div');
+      imgWrapper.className = 'image-wrapper';
+
+      if (slide.imageSrc) {
+        const img = document.createElement('img');
+        img.src = slide.imageSrc;
+        imgWrapper.appendChild(img);
+
+        // パースクリックで新規ピン追加
+        imgWrapper.addEventListener('click', (e) => {
+          if (e.target.closest('.pin')) return;
+          const rect = img.getBoundingClientRect();
+          const x = ((e.clientX - rect.left) / rect.width) * 100;
+          const y = ((e.clientY - rect.top) / rect.height) * 100;
+          openAddPinModal(slide.id, x, y);
+        });
+
+        // ピン描画
+        slide.pins.forEach((pin, pIndex) => {
+          const pinNo = pIndex + 1;
+          const pinEl = document.createElement('div');
+          pinEl.className = 'pin';
+          pinEl.style.left = `${pin.x}%`;
+          pinEl.style.top = `${pin.y}%`;
+          pinEl.textContent = pinNo;
+
+          // ピンをクリックした時にポップアップを固定表示（トグル）
+          pinEl.addEventListener('click', (e) => {
+            e.stopPropagation();
+            document.querySelectorAll('.pin').forEach(p => {
+              if (p !== pinEl) p.classList.remove('is-active');
+            });
+            pinEl.classList.toggle('is-active');
+          });
+
+          const popup = document.createElement('div');
+          popup.className = 'pin-popup';
+          popup.addEventListener('click', (e) => e.stopPropagation());
+
+          popup.innerHTML = `
+            <div class="popup-title">No.${pinNo} ${pin.part}</div>
+            <div>${pin.specs.replace(/\n/g, '<br>')}</div>
+            ${pin.maker ? `<div style="color:#94a3b8; margin-top:4px;">/${pin.maker}</div>` : ''}
+            ${pin.url ? `<a class="popup-link" href="${pin.url}" target="_blank" rel="noopener noreferrer">メーカー詳細を開く →</a>` : ''}
+          `;
+          pinEl.appendChild(popup);
+          imgWrapper.appendChild(pinEl);
+        });
+      } else {
+        const placeholder = document.createElement('div');
+        placeholder.className = 'empty-image-placeholder';
+        placeholder.innerHTML = `クリックしてこのスライドにパース画像を設定<br><span style="font-size:11px; color:#64748b;">(JPG / PNG)</span>`;
+        placeholder.onclick = () => {
+          const input = document.createElement('input');
+          input.type = 'file';
+          input.accept = 'image/*';
+          input.onchange = (e) => {
+            const f = e.target.files[0];
+            if (f) {
+              const r = new FileReader();
+              r.onload = (ev) => {
+                slide.imageSrc = ev.target.result;
+                renderSlides();
+              };
+              r.readAsDataURL(f);
+            }
+          };
+          input.click();
+        };
+        imgWrapper.appendChild(placeholder);
+      }
+      slideEl.appendChild(imgWrapper);
+
+      // 下部テーブル
+      const tableSection = document.createElement('div');
+      tableSection.className = 'table-section';
+      
+      let rowsHtml = '';
+      slide.pins.forEach((pin, pIndex) => {
+        const pinNo = pIndex + 1;
+        rowsHtml += `
+          <tr>
+            <td style="font-weight:bold; text-align:center; width:45px;">${pinNo}</td>
+            <td style="width:160px;"><strong>■${pin.part}</strong></td>
+            <td style="white-space:pre-line;">${pin.specs}</td>
+            <td style="width:160px;">${pin.maker || '-'}</td>
+            <td style="width:150px;">${pin.url ? `<a href="${pin.url}" target="_blank" rel="noopener noreferrer" style="color:#2563eb;">リンクを開く</a>` : '-'}</td>
+            <td style="width:50px; text-align:center;"><button class="action-btn-del" onclick="deletePin(${slide.id}, ${pin.id})">削除</button></td>
+          </tr>
+        `;
+      });
+
+      tableSection.innerHTML = `
+        <table>
+          <thead>
+            <tr>
+              <th>No.</th>
+              <th>使用部位</th>
+              <th>仕様・仕上げ詳細</th>
+              <th>メーカー</th>
+              <th>カタログ / 承認図</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rowsHtml || '<tr><td colspan="6" style="text-align:center; color:#94a3b8; padding:12px;">パース上をクリックして材料ピンを追加してください</td></tr>'}
+          </tbody>
+        </table>
+      `;
+      slideEl.appendChild(tableSection);
+
+      container.appendChild(slideEl);
+    });
+  }
+
+  // 画面全体のどこかをクリックしたらピン固定を解除
+  document.addEventListener('click', () => {
+    document.querySelectorAll('.pin').forEach(p => p.classList.remove('is-active'));
+  });
+
+  function updateSlideTitle(slideId, newTitle) {
+    const s = projectData.slides.find(item => item.id === slideId);
+    if (s) s.title = newTitle;
+  }
+
+  function openAddPinModal(slideId, x, y) {
+    activeSlideId = slideId;
+    tempCoords = { x, y };
+    document.getElementById('inputPart').value = '';
+    document.getElementById('inputSpecs').value = '';
+    document.getElementById('inputMaker').value = '';
+    document.getElementById('inputUrl').value = '';
+    document.getElementById('modalOverlay').style.display = 'flex';
+  }
+
+  function closeModal() {
+    document.getElementById('modalOverlay').style.display = 'none';
+  }
+
+  function savePinData() {
+    const slide = projectData.slides.find(s => s.id === activeSlideId);
+    if (!slide) return;
+
+    const part = document.getElementById('inputPart').value || '未設定';
+    const specs = document.getElementById('inputSpecs').value || '';
+    const maker = document.getElementById('inputMaker').value || '';
+    const url = document.getElementById('inputUrl').value || '';
+
+    slide.pins.push({
+      id: Date.now() + Math.random(),
+      x: tempCoords.x,
+      y: tempCoords.y,
+      part, specs, maker, url
+    });
+
+    closeModal();
+    renderSlides();
+  }
+
+  function deletePin(slideId, pinId) {
+    const slide = projectData.slides.find(s => s.id === slideId);
+    if (slide) {
+      slide.pins = slide.pins.filter(p => p.id !== pinId);
+      renderSlides();
+    }
+  }
+
+  function exportProjectJSON() {
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(projectData, null, 2));
+    const a = document.createElement('a');
+    a.href = dataStr;
+    a.download = `material_project_${new Date().toISOString().slice(0,10)}.json`;
+    a.click();
+  }
+
+  document.getElementById('projectJsonInput').addEventListener('change', function(e) {
+    const file = e.target.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        try {
+          projectData = JSON.parse(event.target.result);
+          renderSlides();
+        } catch(err) {
+          alert('プロジェクトJSONの読み込みに失敗しました。');
+        }
+      };
+      reader.readAsText(file);
+    }
+  });
+</script>
+</body>
+</html>
