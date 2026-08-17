@@ -127,9 +127,13 @@
     border: 2px dashed var(--primary);
     transform: scale(0.99);
   }
-  .page-card.drag-over {
-    border-top: 5px solid var(--primary);
+  .page-card.drag-over-top {
+    border-top: 5px solid var(--primary) !important;
     transform: translateY(3px);
+  }
+  .page-card.drag-over-bottom {
+    border-bottom: 5px solid var(--primary) !important;
+    transform: translateY(-3px);
   }
 
   .card-header {
@@ -164,7 +168,7 @@
     border-color: var(--border);
     background: #f8fafc;
   }
-  .card-actions { display: flex; align-items: center; gap: 8px; }
+  .card-actions { display: flex; align-items: center; gap: 6px; }
   .card-date-display { font-size: 12px; color: #64748b; font-weight: bold; margin-right: 8px; }
   .drag-hint {
     font-size: 11px;
@@ -216,7 +220,7 @@
     line-height: 1.6;
   }
 
-  /* ピン（通常時およびフロートドラッグ時） */
+  /* ピン（通常時） */
   .pin {
     position: absolute;
     min-width: 28px;
@@ -246,17 +250,50 @@
     background: var(--primary);
     z-index: 50;
   }
-  /* ドラッグ中の超なめらか追従スタイル */
-  .pin.is-floating {
-    position: fixed !important;
-    z-index: 99999 !important;
-    pointer-events: none !important;
-    cursor: grabbing !important;
-    background: #059669 !important;
-    border-color: #6ee7b7 !important;
-    transform: translate(-50%, -50%) scale(1.3) !important;
-    box-shadow: 0 10px 25px rgba(0,0,0,0.6) !important;
-    transition: none !important; /* 遅延なく60fpsでポインターに追従 */
+
+  /* ドラッグ中にカーソル直下に追従するフロートピン */
+  .floating-drag-pin {
+    position: fixed;
+    z-index: 999999;
+    pointer-events: none;
+    min-width: 28px;
+    height: 28px;
+    padding: 0 6px;
+    color: #fff;
+    border-radius: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    font-weight: bold;
+    transform: translate(-50%, -50%) scale(1.25);
+    box-shadow: 0 12px 28px rgba(0,0,0,0.65);
+    white-space: nowrap;
+    line-height: 1;
+  }
+  .floating-drag-pin.mode-move {
+    background: var(--primary);
+    border: 2px solid #93c5fd;
+  }
+  .floating-drag-pin.mode-copy {
+    background: #059669;
+    border: 2px solid #6ee7b7;
+  }
+  .floating-drag-pin.mode-copy::after {
+    content: '＋';
+    position: absolute;
+    top: -8px;
+    right: -8px;
+    background: #10b981;
+    color: #fff;
+    font-size: 10px;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1.5px solid #fff;
   }
 
   .pin-popup {
@@ -288,7 +325,7 @@
     height: 20px;
     background: transparent;
   }
-  .pin:hover:not(.is-floating) .pin-popup, .pin.is-active:not(.is-floating) .pin-popup {
+  .pin:hover .pin-popup, .pin.is-active .pin-popup {
     display: block;
   }
   
@@ -638,6 +675,19 @@
     renderPages();
   }
 
+  function duplicateSlide(slideId) {
+    const sIndex = projectData.slides.findIndex(s => s.id === slideId);
+    if (sIndex === -1) return;
+    const src = projectData.slides[sIndex];
+    const cloned = JSON.parse(JSON.stringify(src));
+    cloned.id = Date.now() + Math.random();
+    cloned.title = src.title + " (コピー)";
+    cloned.pins.forEach(p => { p.id = Date.now() + Math.random(); });
+    
+    projectData.slides.splice(sIndex + 1, 0, cloned);
+    renderPages();
+  }
+
   function deleteSlide(slideId) {
     if (confirm("このパース画面を削除しますか？（※材料データ自体は保持されます）")) {
       projectData.slides = projectData.slides.filter(s => s.id !== slideId);
@@ -730,43 +780,55 @@
       card.addEventListener('dragend', () => {
         card.classList.remove('dragging');
         stopAutoScroll();
-        document.querySelectorAll('.page-card').forEach(c => c.classList.remove('drag-over'));
+        document.querySelectorAll('.page-card').forEach(c => {
+          c.classList.remove('drag-over-top', 'drag-over-bottom');
+        });
       });
 
       card.addEventListener('dragover', (e) => {
         e.preventDefault();
         handleAutoScroll(e.clientY);
-        card.classList.add('drag-over');
+        const rect = card.getBoundingClientRect();
+        const mid = rect.top + rect.height / 2;
+        if (e.clientY < mid) {
+          card.classList.add('drag-over-top');
+          card.classList.remove('drag-over-bottom');
+        } else {
+          card.classList.add('drag-over-bottom');
+          card.classList.remove('drag-over-top');
+        }
       });
 
       card.addEventListener('dragleave', () => {
-        card.classList.remove('drag-over');
+        card.classList.remove('drag-over-top', 'drag-over-bottom');
       });
 
       card.addEventListener('drop', (e) => {
         e.preventDefault();
         stopAutoScroll();
-        card.classList.remove('drag-over');
-        const fromIndex = parseInt(e.dataTransfer.getData('text/plain'), 10);
-        const toIndex = sIndex;
+        const isTop = card.classList.contains('drag-over-top');
+        card.classList.remove('drag-over-top', 'drag-over-bottom');
 
-        if (!isNaN(fromIndex)) {
-          const isCopy = e.ctrlKey || e.metaKey;
-          if (isCopy) {
-            // 【Ctrl+ドラッグ】パースカードを丸ごと複製
-            const src = projectData.slides[fromIndex];
-            const cloned = JSON.parse(JSON.stringify(src));
-            cloned.id = Date.now() + Math.random();
-            cloned.title = src.title + " (コピー)";
-            cloned.pins.forEach(p => { p.id = Date.now() + Math.random(); });
-            projectData.slides.splice(toIndex + 1, 0, cloned);
-          } else if (fromIndex !== toIndex) {
-            // 【通常ドラッグ】カード順序の入れ替え
-            const item = projectData.slides.splice(fromIndex, 1)[0];
-            projectData.slides.splice(toIndex, 0, item);
-          }
-          renderPages();
+        const fromIndex = parseInt(e.dataTransfer.getData('text/plain'), 10);
+        if (isNaN(fromIndex)) return;
+
+        let targetIndex = isTop ? sIndex : sIndex + 1;
+        const isCopy = e.ctrlKey || e.metaKey;
+
+        if (isCopy) {
+          const src = projectData.slides[fromIndex];
+          const cloned = JSON.parse(JSON.stringify(src));
+          cloned.id = Date.now() + Math.random();
+          cloned.title = src.title + " (コピー)";
+          cloned.pins.forEach(p => { p.id = Date.now() + Math.random(); });
+          projectData.slides.splice(targetIndex, 0, cloned);
+        } else {
+          if (fromIndex === sIndex) return;
+          const item = projectData.slides.splice(fromIndex, 1)[0];
+          if (fromIndex < targetIndex) targetIndex--;
+          projectData.slides.splice(targetIndex, 0, item);
         }
+        renderPages();
       });
 
       const header = document.createElement('div');
@@ -778,7 +840,8 @@
         </div>
         <div class="card-actions">
           <span class="card-date-display">${projectData.updatedDate}</span>
-          <span class="drag-hint">↕ 枠を掴んで並替 (Ctrl+ドラッグで複製)</span>
+          <button class="btn btn-outline" style="padding:4px 8px; font-size:11px; background:#f0fdf4; color:#15803d; border-color:#bbf7d0;" onclick="duplicateSlide(${slide.id})" title="このパースを真下にコピー">📋 複製</button>
+          <span class="drag-hint">↕ 枠を掴んで並替</span>
           <button class="btn btn-outline" style="padding:4px 8px;" onclick="moveSlide(${sIndex}, -1)" ${sIndex === 0 ? 'disabled' : ''}>▲</button>
           <button class="btn btn-outline" style="padding:4px 8px;" onclick="moveSlide(${sIndex}, 1)" ${sIndex === projectData.slides.length - 1 ? 'disabled' : ''}>▼</button>
           <button class="btn btn-danger" style="padding:4px 8px;" onclick="deleteSlide(${slide.id})">削除</button>
@@ -831,10 +894,11 @@
           pinEl.style.top = `${pin.y}%`;
           pinEl.textContent = displayNo;
 
-          // ピンのフロートドラッグ（カード間を超滑らかに移動 / Ctrl+ドラッグ複製）
+          // ピンのフロートドラッグ（即時可視化＋Ctrl複製）
           let isDragging = false;
           let startX, startY;
           let moved = false;
+          let floatingPin = null;
 
           const onPointerDown = (e) => {
             if (e.target.closest('.pin-popup')) return;
@@ -846,44 +910,65 @@
             startX = e.clientX;
             startY = e.clientY;
 
-            if (pinEl.setPointerCapture) {
-              try { pinEl.setPointerCapture(e.pointerId); } catch(err){}
-            }
+            const isInitialCopy = e.ctrlKey || e.metaKey;
+
+            const onKeyChange = (ke) => {
+              if (!floatingPin) return;
+              const isCopyNow = ke.ctrlKey || ke.metaKey;
+              if (isCopyNow) {
+                floatingPin.className = 'floating-drag-pin mode-copy';
+                pinEl.style.opacity = '1';
+              } else {
+                floatingPin.className = 'floating-drag-pin mode-move';
+                pinEl.style.opacity = '0.25';
+              }
+            };
+            window.addEventListener('keydown', onKeyChange);
+            window.addEventListener('keyup', onKeyChange);
 
             const onPointerMove = (ev) => {
               if (!isDragging) return;
               const dist = Math.hypot(ev.clientX - startX, ev.clientY - startY);
-              if (dist > 4) {
-                moved = true;
-                pinEl.classList.add('is-floating');
-                handleAutoScroll(ev.clientY);
 
-                // マウス位置に直接吸着して画面全体を自在に移動
-                pinEl.style.left = `${ev.clientX}px`;
-                pinEl.style.top = `${ev.clientY}px`;
+              if (dist > 4 && !floatingPin) {
+                moved = true;
+                // 即座にフロートピンを作成して表示
+                floatingPin = document.createElement('div');
+                const isCopy = ev.ctrlKey || ev.metaKey;
+                floatingPin.className = `floating-drag-pin ${isCopy ? 'mode-copy' : 'mode-move'}`;
+                floatingPin.textContent = displayNo;
+                document.body.appendChild(floatingPin);
+
+                if (!isCopy) pinEl.style.opacity = '0.25';
+              }
+
+              if (floatingPin) {
+                floatingPin.style.left = `${ev.clientX}px`;
+                floatingPin.style.top = `${ev.clientY}px`;
+                handleAutoScroll(ev.clientY);
               }
             };
 
             const onPointerUp = (ev) => {
               if (!isDragging) return;
               isDragging = false;
-              pinEl.classList.remove('is-floating');
               stopAutoScroll();
 
-              if (pinEl.releasePointerCapture) {
-                try { pinEl.releasePointerCapture(ev.pointerId); } catch(err){}
-              }
-
+              window.removeEventListener('keydown', onKeyChange);
+              window.removeEventListener('keyup', onKeyChange);
               window.removeEventListener('pointermove', onPointerMove);
               window.removeEventListener('pointerup', onPointerUp);
 
-              if (moved) {
-                // ドロップ先のパース画像を検出
-                pinEl.style.display = 'none';
-                const elemBelow = document.elementFromPoint(ev.clientX, ev.clientY);
-                pinEl.style.display = '';
+              if (floatingPin) {
+                floatingPin.remove();
+                floatingPin = null;
+              }
+              pinEl.style.opacity = '1';
 
+              if (moved) {
+                const elemBelow = document.elementFromPoint(ev.clientX, ev.clientY);
                 const targetStage = elemBelow ? elemBelow.closest('.image-stage') : null;
+
                 if (targetStage) {
                   const targetSlideId = parseFloat(targetStage.dataset.slideId);
                   const targetSlide = projectData.slides.find(s => s.id === targetSlideId);
@@ -895,7 +980,7 @@
                     const isCopy = ev.ctrlKey || ev.metaKey;
 
                     if (isCopy) {
-                      // 【Ctrl+ドラッグ】ピンを複製
+                      // 【Ctrl+ドラッグ】複製して新ピン配置
                       targetSlide.pins.push({
                         id: Date.now() + Math.random(),
                         materialId: pin.materialId,
@@ -903,7 +988,7 @@
                         y: newY
                       });
                     } else {
-                      // 【通常ドラッグ】同一または別パースへ移動
+                      // 【通常ドラッグ】移動
                       if (targetSlideId === slide.id) {
                         pin.x = newX;
                         pin.y = newY;
@@ -921,7 +1006,7 @@
                     return;
                   }
                 }
-                renderPages(); // パース外に落とした場合は元の位置に戻す
+                renderPages();
               }
             };
 
