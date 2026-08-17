@@ -205,7 +205,6 @@
     background: #dbeafe;
     color: #1e40af;
   }
-  .card-badge.master { background: #fef3c7; color: #92400e; }
   
   .card-title-input {
     font-size: 16px;
@@ -471,6 +470,7 @@
   .action-btn-edit { color: var(--primary); cursor: pointer; background: none; border: none; font-size: 11px; font-weight: bold; text-decoration: underline; }
   .action-btn-del { color: #ef4444; cursor: pointer; background: none; border: none; font-size: 11px; text-decoration: underline; }
 
+  /* モーダル */
   .modal-overlay {
     position: fixed;
     top: 0; left: 0; width: 100%; height: 100%;
@@ -562,6 +562,7 @@
     margin-bottom: 3px;
   }
 
+  /* 過去物件アーカイブカード */
   .archive-project-card {
     border: 1px solid var(--border);
     border-radius: 6px;
@@ -744,12 +745,12 @@
     </div>
     <div class="modal-actions">
       <button class="btn btn-outline" onclick="closeModal()">キャンセル</button>
-      <button class="btn" onclick="saveModalData()">保存</button>
+      <button class="btn" onclick="saveModalData()">完了 / 保存</button>
     </div>
   </div>
 </div>
 
-<!-- モーダル（材料ライブラリ・横断検索フィルター） -->
+<!-- モーダル（材料ライブラリ・横断検索フィルター ＆ 個別削除） -->
 <div class="modal-overlay" id="libraryModalOverlay">
   <div class="modal" style="width: 780px;">
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
@@ -812,8 +813,7 @@
     return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}:${String(d.getSeconds()).padStart(2,'0')}`;
   };
 
-  // --- IndexedDB 大容量ストレージ管理（容量制限なし） ---
-  const DB_NAME = 'MaterialViewer_IndexedDB_v1';
+  const DB_NAME = 'MaterialViewer_IndexedDB_v2';
   const DB_VERSION = 1;
 
   function openIndexedDB() {
@@ -947,7 +947,6 @@
     } catch(e) {}
   }
 
-  // --- メインデータ構造 ---
   let projectData = {
     projectName: '新築分譲マンション計画',
     updatedDate: getTodayStr(),
@@ -975,14 +974,12 @@
     }, 2400);
   }
 
-  // 手動保存
   async function manualSaveDraft() {
     await saveCurrentDraft();
     await saveCurrentProjectArchive();
     showToast(`💾 下書き＆パース画像を保存しました (${getTimeStr()})`);
   }
 
-  // 自動保存（IndexedDBへ非同期保存）
   async function saveCurrentDraft() {
     await idbSaveDraft(projectData);
     const ind = document.getElementById('autoSaveIndicator');
@@ -1010,7 +1007,7 @@
     if (!mat || !mat.part) return;
     const currentProject = projectData.projectName || '未設定物件';
     const historyItem = {
-      id: 'lib_' + currentProject + '_' + mat.part + '_' + (mat.maker || ''),
+      id: 'lib_' + currentProject + '_' + mat.part + '_' + (mat.maker || '') + '_' + (mat.customNo || ''),
       projectName: currentProject,
       part: mat.part,
       specs: mat.specs || '',
@@ -1038,7 +1035,6 @@
     }
   }
 
-  // --- 初期ロード ---
   window.addEventListener('DOMContentLoaded', async () => {
     const loadedDraft = await idbLoadDraft();
     if (loadedDraft && loadedDraft.slides && loadedDraft.slides.length > 0) {
@@ -1054,7 +1050,6 @@
     setupLassoSelection();
   });
 
-  // --- ショートカット ---
   window.addEventListener('keydown', (e) => {
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
       e.preventDefault();
@@ -1079,7 +1074,6 @@
     }
   });
 
-  // --- 印刷 ---
   function printAllPages() {
     document.body.classList.remove('print-table-only');
     window.print();
@@ -1145,6 +1139,7 @@
 
     window.addEventListener('mousedown', (e) => {
       if (e.target.closest('.page-card, .toolbar, .copy-banner, .modal-overlay')) return;
+      
       isSelecting = true;
       startX = e.clientX;
       startY = e.clientY;
@@ -1162,6 +1157,7 @@
 
     window.addEventListener('mousemove', (e) => {
       if (!isSelecting) return;
+
       const curX = e.clientX;
       const curY = e.clientY;
 
@@ -1201,7 +1197,6 @@
     });
   }
 
-  // --- パース一括追加 ---
   document.getElementById('batchImageInput').addEventListener('change', function(e) {
     const files = Array.from(e.target.files);
     if (!files.length) return;
@@ -1242,7 +1237,7 @@
   }
 
   function duplicateSlide(slideId) {
-    const sIndex = projectData.slides.findIndex(s => s.id === slideId);
+    const sIndex = projectData.slides.findIndex(s => String(s.id) === String(slideId));
     if (sIndex === -1) return;
     const src = projectData.slides[sIndex];
     const cloned = JSON.parse(JSON.stringify(src));
@@ -1257,7 +1252,7 @@
 
   function deleteSlide(slideId) {
     if (confirm("このパース画面を削除しますか？（※材料データ自体は保持されます）")) {
-      projectData.slides = projectData.slides.filter(s => s.id !== slideId);
+      projectData.slides = projectData.slides.filter(s => String(s.id) !== String(slideId));
       selectedSlideIds.delete(slideId);
       renderPages();
     }
@@ -1272,7 +1267,7 @@
   }
 
   function updateSlideTitle(slideId, newTitle) {
-    const s = projectData.slides.find(item => item.id === slideId);
+    const s = projectData.slides.find(item => String(item.id) === String(slideId));
     if (s) {
       s.title = newTitle;
       saveCurrentDraft();
@@ -1280,7 +1275,7 @@
   }
 
   function updateMaterialNo(matId, val) {
-    const mat = projectData.materials.find(m => m.id === matId);
+    const mat = projectData.materials.find(m => String(m.id) === String(matId));
     if (mat) {
       mat.customNo = val;
       renderPages();
@@ -1288,7 +1283,7 @@
   }
 
   function duplicateMaterial(matId) {
-    const mIndex = projectData.materials.findIndex(m => m.id === matId);
+    const mIndex = projectData.materials.findIndex(m => String(m.id) === String(matId));
     if (mIndex === -1) return;
     const src = projectData.materials[mIndex];
     const cloned = JSON.parse(JSON.stringify(src));
@@ -1304,9 +1299,9 @@
 
   function deleteMaterial(matId) {
     if (confirm("この材料を削除しますか？\n（配置されているすべてのパース上のピンも削除されます）")) {
-      projectData.materials = projectData.materials.filter(m => m.id !== matId);
+      projectData.materials = projectData.materials.filter(m => String(m.id) !== String(matId));
       projectData.slides.forEach(s => {
-        s.pins = s.pins.filter(p => p.materialId !== matId);
+        s.pins = s.pins.filter(p => String(p.materialId) !== String(matId));
       });
       saveCurrentProjectArchive();
       renderPages();
@@ -1314,17 +1309,17 @@
   }
 
   function removePinFromSlide(slideId, pinId) {
-    const slide = projectData.slides.find(s => s.id === slideId);
+    const slide = projectData.slides.find(s => String(s.id) === String(slideId));
     if (slide) {
-      slide.pins = slide.pins.filter(p => p.id !== pinId);
+      slide.pins = slide.pins.filter(p => String(p.id) !== String(pinId));
       renderPages();
     }
   }
 
   function startCopyMaterialMode(matId) {
-    const mat = projectData.materials.find(m => m.id === matId);
+    const mat = projectData.materials.find(m => String(m.id) === String(matId));
     if (!mat) return;
-    copyingMaterialId = matId;
+    copyingMaterialId = mat.id;
     const displayNo = (mat.customNo !== undefined && mat.customNo !== '') ? mat.customNo : (projectData.materials.indexOf(mat) + 1);
     
     document.getElementById('copyBannerText').innerHTML = `📋 <strong>No.${displayNo} ■${mat.part}</strong> をコピー中: 貼り付けたいパースの任意の位置をクリックしてください（連続配置可能）`;
@@ -1475,7 +1470,7 @@
 
   async function importSingleSlideFromArchive(archId, slideIndex) {
     const archives = await idbGetAllArchives();
-    const arch = archives.find(a => a.id === archId);
+    const arch = archives.find(a => String(a.id) === String(archId));
     if (!arch || !arch.slides || !arch.slides[slideIndex]) return;
 
     const srcSlide = arch.slides[slideIndex];
@@ -1485,7 +1480,7 @@
 
     const matIdMap = {};
     clonedSlide.pins.forEach(pin => {
-      const srcMat = (arch.materials || []).find(m => m.id === pin.materialId);
+      const srcMat = (arch.materials || []).find(m => String(m.id) === String(pin.materialId));
       if (srcMat) {
         if (!matIdMap[srcMat.id]) {
           let existing = projectData.materials.find(m => m.part === srcMat.part && m.specs === srcMat.specs && m.maker === srcMat.maker);
@@ -1519,7 +1514,7 @@
 
   async function applyProjectArchive(archId, overwrite = false) {
     const archives = await idbGetAllArchives();
-    const arch = archives.find(a => a.id === archId);
+    const arch = archives.find(a => String(a.id) === String(archId));
     if (!arch) return;
 
     if (overwrite) {
@@ -1660,7 +1655,7 @@
   }
 
   function applySingleLibraryItem(historyId) {
-    const h = cachedHistoryList.find(item => item.id === historyId);
+    const h = cachedHistoryList.find(item => String(item.id) === String(historyId));
     if (h) {
       document.getElementById('inputPart').value = h.part || '';
       document.getElementById('inputSpecs').value = h.specs || '';
@@ -1678,7 +1673,7 @@
   }
 
   function importSingleLibraryItem(historyId) {
-    const h = cachedHistoryList.find(item => item.id === historyId);
+    const h = cachedHistoryList.find(item => String(item.id) === String(historyId));
     if (h) {
       projectData.materials.push({
         id: 'mat_' + Date.now() + Math.random().toString(36).substring(2, 6),
@@ -1703,7 +1698,7 @@
     }
     checks.forEach(chk => {
       const hId = chk.dataset.id;
-      const h = cachedHistoryList.find(item => item.id === hId);
+      const h = cachedHistoryList.find(item => String(item.id) === String(hId));
       if (h) {
         projectData.materials.push({
           id: 'mat_' + Date.now() + Math.random().toString(36).substring(2, 6),
@@ -1814,15 +1809,15 @@
       header.innerHTML = `
         <div class="card-title-group">
           <span class="card-badge">パース画面 ${sIndex + 1}</span>
-          <input class="card-title-input" type="text" value="${slide.title}" onchange="updateSlideTitle(${slide.id}, this.value)" placeholder="パース名を入力">
+          <input class="card-title-input" type="text" value="${slide.title}" onchange="updateSlideTitle('${slide.id}', this.value)" placeholder="パース名を入力">
         </div>
         <div class="card-actions">
           <span class="card-date-display">${projectData.updatedDate}</span>
-          <button class="btn btn-outline" style="padding:4px 8px; font-size:11px; background:#f0fdf4; color:#15803d; border-color:#bbf7d0;" onclick="duplicateSlide(${slide.id})" title="このパースを直下にコピー">📋 複製</button>
+          <button class="btn btn-outline" style="padding:4px 8px; font-size:11px; background:#f0fdf4; color:#15803d; border-color:#bbf7d0;" onclick="duplicateSlide('${slide.id}')" title="このパースを直下にコピー">📋 複製</button>
           <span class="drag-hint">↕ ヘッダー掴んで並替</span>
           <button class="btn btn-outline" style="padding:4px 8px;" onclick="moveSlide(${sIndex}, -1)" ${sIndex === 0 ? 'disabled' : ''}>▲</button>
           <button class="btn btn-outline" style="padding:4px 8px;" onclick="moveSlide(${sIndex}, 1)" ${sIndex === projectData.slides.length - 1 ? 'disabled' : ''}>▼</button>
-          <button class="btn btn-danger" style="padding:4px 8px;" onclick="deleteSlide(${slide.id})">削除</button>
+          <button class="btn btn-danger" style="padding:4px 8px;" onclick="deleteSlide('${slide.id}')">削除</button>
         </div>
       `;
       card.appendChild(header);
@@ -1859,7 +1854,7 @@
         });
 
         slide.pins.forEach((pin) => {
-          const mat = projectData.materials.find(m => m.id === pin.materialId);
+          const mat = projectData.materials.find(m => String(m.id) === String(pin.materialId));
           if (!mat) return;
 
           const displayNo = (mat.customNo !== undefined && mat.customNo !== '') ? mat.customNo : (projectData.materials.indexOf(mat) + 1);
@@ -1941,8 +1936,8 @@
                 const targetStage = elemBelow ? elemBelow.closest('.image-stage') : null;
 
                 if (targetStage) {
-                  const targetSlideId = parseFloat(targetStage.dataset.slideId);
-                  const targetSlide = projectData.slides.find(s => s.id === targetSlideId);
+                  const targetSlideId = targetStage.dataset.slideId;
+                  const targetSlide = projectData.slides.find(s => String(s.id) === String(targetSlideId));
                   if (targetSlide) {
                     const rect = targetStage.getBoundingClientRect();
                     const newX = Math.max(0, Math.min(100, ((ev.clientX - rect.left) / rect.width) * 100));
@@ -1958,11 +1953,11 @@
                         y: newY
                       });
                     } else {
-                      if (targetSlideId === slide.id) {
+                      if (String(targetSlide.id) === String(slide.id)) {
                         pin.x = newX;
                         pin.y = newY;
                       } else {
-                        slide.pins = slide.pins.filter(p => p.id !== pin.id);
+                        slide.pins = slide.pins.filter(p => String(p.id) !== String(pin.id));
                         targetSlide.pins.push({
                           id: pin.id,
                           materialId: pin.materialId,
@@ -2008,7 +2003,7 @@
             <div class="popup-bottom-actions">
               <button class="popup-btn copy-btn" onclick="startCopyMaterialMode('${mat.id}')">📋 材料をコピー</button>
               <button class="popup-btn" onclick="openEditMaterialModal('${mat.id}')">✏️ 仕様を編集</button>
-              <button class="popup-del-pin-btn" onclick="removePinFromSlide(${slide.id}, ${pin.id})">ピンを外す</button>
+              <button class="popup-del-pin-btn" onclick="removePinFromSlide('${slide.id}', '${pin.id}')">ピンを外す</button>
             </div>
           `;
           pinEl.appendChild(popup);
@@ -2051,7 +2046,6 @@
     masterCard.innerHTML = `
       <div class="card-header" style="cursor:default;">
         <div class="card-title-group">
-          <span class="card-badge master">最終ページ</span>
           <div style="font-size:17px; font-weight:bold;">プロジェクト共通 材料仕上表</div>
         </div>
         <div class="card-actions">
@@ -2220,7 +2214,7 @@
     tempPinCoords = null;
     editingMaterialId = matId;
 
-    const mat = projectData.materials.find(m => m.id === matId);
+    const mat = projectData.materials.find(m => String(m.id) === String(matId));
     if (!mat) return;
 
     document.getElementById('modalTitle').textContent = "材料仕様の編集（全パース一括連動）";
@@ -2249,7 +2243,7 @@
     if (selVal === 'new') {
       resetModalFields(String(projectData.materials.length + 1));
     } else {
-      const mat = projectData.materials.find(m => m.id === selVal);
+      const mat = projectData.materials.find(m => String(m.id) === String(selVal));
       if (mat) {
         document.getElementById('inputCustomNo').value = (mat.customNo !== undefined && mat.customNo !== '') ? mat.customNo : (projectData.materials.indexOf(mat) + 1);
         document.getElementById('inputPart').value = mat.part;
@@ -2282,7 +2276,7 @@
 
   async function saveModalData() {
     const customNo = document.getElementById('inputCustomNo').value.trim();
-    const part = document.getElementById('inputPart').value || '未設定';
+    const part = document.getElementById('inputPart').value.trim() || '未設定';
     const specs = document.getElementById('inputSpecs').value || '';
     const maker = document.getElementById('inputMaker').value || '';
     const url = document.getElementById('inputUrl').value || '';
@@ -2290,7 +2284,7 @@
     let targetMatId = editingMaterialId;
 
     if (editingMaterialId !== null) {
-      const mat = projectData.materials.find(m => m.id === editingMaterialId);
+      const mat = projectData.materials.find(m => String(m.id) === String(editingMaterialId));
       if (mat) {
         mat.customNo = customNo;
         mat.part = part;
@@ -2301,11 +2295,12 @@
         await saveToMaterialHistory(mat);
       }
     } else {
-      const selVal = document.getElementById('modalMatSelect') ? document.getElementById('modalMatSelect').value : 'new';
+      const sel = document.getElementById('modalMatSelect');
+      const selVal = sel ? sel.value : 'new';
       
-      if (activeSlideId && selVal !== 'new') {
+      if (activeSlideId && selVal && selVal !== 'new') {
         targetMatId = selVal;
-        const mat = projectData.materials.find(m => m.id === selVal);
+        const mat = projectData.materials.find(m => String(m.id) === String(selVal));
         if (mat) {
           mat.customNo = customNo;
           mat.part = part;
@@ -2316,7 +2311,7 @@
           await saveToMaterialHistory(mat);
         }
       } else {
-        targetMatId = 'mat_' + Date.now() + Math.random().toString(36).substring(2, 6);
+        targetMatId = 'mat_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7);
         const newMat = {
           id: targetMatId,
           customNo: customNo,
@@ -2331,10 +2326,11 @@
       }
 
       if (activeSlideId && tempPinCoords) {
-        const slide = projectData.slides.find(s => s.id === activeSlideId);
+        const slide = projectData.slides.find(s => String(s.id) === String(activeSlideId));
         if (slide) {
+          if (!slide.pins) slide.pins = [];
           slide.pins.push({
-            id: Date.now() + Math.random(),
+            id: 'pin_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7),
             materialId: targetMatId,
             x: tempPinCoords.x,
             y: tempPinCoords.y
@@ -2344,8 +2340,9 @@
     }
 
     closeModal();
-    saveCurrentProjectArchive();
+    await saveCurrentProjectArchive();
     renderPages();
+    showToast("材料仕様を保存しました");
   }
 
   function exportProjectJSON() {
@@ -2482,7 +2479,7 @@
       stage.appendChild(img);
 
       slide.pins.forEach(pin => {
-        const mat = data.materials.find(m => m.id === pin.materialId);
+        const mat = data.materials.find(m => String(m.id) === String(pin.materialId));
         if (!mat) return;
         const no = (mat.customNo !== undefined && mat.customNo !== '') ? mat.customNo : (data.materials.indexOf(mat) + 1);
         const pEl = document.createElement('div');
